@@ -75,7 +75,12 @@ VIEWS.space = () => {
         <canvas id="three"></canvas>
         <canvas id="plan" hidden></canvas>
       </div>
-      <p class="hint mt8">Drag to orbit, scroll to zoom. Filled markers are display positions in use.</p>
+      <p class="hint mt8">Drag to orbit, scroll to zoom. Filled markers are display positions in use.
+      How many shoppers are on the floor comes from the store's modelled weekly visits; where they
+      stop, how long they linger and when a green chip goes up all come from the scored purchase
+      probability of the category in front of them. A plan does not change who walks in, so it
+      changes what they do once inside. Stopping rates are relative to the best zone on this floor,
+      not literal per-visit odds.</p>
     </div>
     <div>
       <div class="card">
@@ -804,6 +809,11 @@ function visionHTML(v) {
     <div class="note mt8">${esc(v.summary || '')}</div>
     ${v.thin ? `<div class="warn mt8">Only ${v.matched.length} trained category matched, so the
       demo floor is still in place. The store type and its positions did change.</div>` : ''}
+    ${!v.thin && miss.length > v.matched.length ? `<div class="warn mt8">This store is mostly
+      outside what the model was trained on: ${v.matched.length} of ${miss.length + v.matched.length}
+      product groups matched. The floor below is real but partial, and anything it cannot score
+      it has left off rather than guessed at. Widening the trained categories, not the photo, is
+      what fixes this.</div>` : ''}
     <h3 class="vh">Matched to trained categories</h3>
     ${(v.matched || []).length ? `<ul class="obs">${v.matched.map(o => `
       <li><span class="ok">&#10003;</span>

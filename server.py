@@ -146,6 +146,10 @@ def _claude(prompt, paths, cwd):
     out = subprocess.run(
         [exe, "-p", full, "--output-format", "json"],
         capture_output=True, text=True, timeout=VISION_TIMEOUT, cwd=str(cwd),
+        # Decode as UTF-8 rather than the console codepage. On Windows the default turns
+        # an em dash into "a€"" and would mangle any shop sign that is not plain ASCII,
+        # which is most of them outside the US.
+        encoding="utf-8", errors="replace",
     )
     if out.returncode != 0:
         raise RuntimeError((out.stderr or "the vision call failed").strip()[:300])
