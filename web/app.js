@@ -2,6 +2,7 @@
 // Every number on screen comes from the response surface the model exported, so a figure
 // here traces back to a fitted purchase probability rather than a planning rule of thumb.
 import { mountScene, updateScene } from './scene.js';
+import { ARCHETYPES, DEFAULT_ARCHETYPE, archetypeCatalog } from './archetypes.js';
 
 const $ = s => document.querySelector(s);
 const view = $('#view');
@@ -15,6 +16,8 @@ let STORE = null, VALID = null;
 let plan = {};        // slot id -> category: the plan currently on screen
 let baseline = null;  // the store as found, scored once at boot
 let sweep = null;     // last optimisation run
+let BASE_ZONES = null; // every trained category with its fitted surface, kept pristine
+let VISION = null;    // last photo read, so the match can stay on screen
 
 // ------------------------------------------------------------------ scoring
 /** Resolve a slot assignment into a display level and a flyer level per category. */
@@ -57,9 +60,10 @@ VIEWS.space = () => {
   <div class="head">
     <div class="eyebrow">Step 1</div>
     <h1>The space</h1>
-    <p class="sub">${esc(STORE.name)}. ${esc(STORE.note)} Ten category zones, five contested display
-    positions, five flyer slots. Drop in photos to rebuild the floor from a real store, or work
-    from the demo plan.</p>
+    <p class="sub">${esc(STORE.name)}. ${esc(STORE.note)} ${STORE.zones.length} category zones,
+    ${STORE.slots.filter(x => x.kind === 'display').length} contested display
+    positions, ${STORE.slots.filter(x => x.kind === 'mailer').length} flyer slots. Drop in photos to
+    rebuild the floor from a real store, or work from the demo plan.</p>
   </div>
   <div class="grid2">
     <div>
@@ -76,17 +80,19 @@ VIEWS.space = () => {
     <div>
       <div class="card">
         <h2>Build from photos</h2>
-        <p class="hint">Upload shots of a store. Simon reads the fixtures, the poster style and the
-        product zones, then rebuilds the floor to match.</p>
+        <p class="hint">Upload shots of a store. Simon looks first, in plain words, then matches what
+        it saw onto the ${BASE_ZONES.length} categories it was actually trained on &mdash; and says
+        what it had to leave out.</p>
         <div class="drop" id="drop">
           <input type="file" id="file" accept="image/*" multiple hidden>
           <b>Drop photos here</b><br><span>or <u id="browse" style="cursor:pointer">browse</u></span>
         </div>
-        <div id="vstat" class="note mt8"></div>
+        <div id="vstat" class="mt8">${VISION ? visionHTML(VISION) : ''}</div>
       </div>
       <div class="card mt">
         <h2>Floor</h2>
         <table>
+          <tr><td>Store type</td><td class="num">${esc(archetypeOf().title)}</td></tr>
           <tr><td>Sales floor</td><td class="num">${n0(s.w * s.d)} m&sup2;</td></tr>
           <tr><td>Weekly visits modelled</td><td class="num">${n0(STORE.visits_per_week)}</td></tr>
           <tr><td>Category zones</td><td class="num">${STORE.zones.length}</td></tr>
@@ -322,6 +328,9 @@ VIEWS.optimise = () => {
   $('#run').onclick = runSweep;
   const ap = $('#apply');
   if (ap && sweep) ap.onclick = () => { plan = { ...sweep.best.assign }; go('scenario'); };
+  // The canvas is new every time this view is rebuilt, so it has to be redrawn here
+  // rather than only on navigation, or the run leaves an empty box behind.
+  if (sweep) drawHist();
 };
 
 /** Sample complete plans at random, keeping slot scarcity and one-slot-per-category honest. */
@@ -615,48 +624,201 @@ function wireUpload() {
   }));
   drop.addEventListener('drop', ev => send([...ev.dataTransfer.files].filter(f => f.type.startsWith('image/'))));
 
+  // Two passes, so the looking and the matching can be judged separately. The reading
+  // from pass one goes on screen the moment it lands, which is also what makes the wait
+  // for pass two bearable.
   async function send(files) {
     if (!files.length) return;
     drop.classList.add('busy');
-    stat.textContent = `Reading ${files.length} photo${files.length === 1 ? '' : 's'}. This calls the vision model and takes up to a minute.`;
+    const n = Math.min(files.length, 4);
+    stat.innerHTML = `<div class="note">Looking at ${n} photo${n === 1 ? '' : 's'}. This calls the
+      vision model and takes up to a minute.</div>`;
     try {
-      const photos = await Promise.all(files.slice(0, 4).map(f => new Promise((res, rej) => {
+      const photos = await Promise.all([...files].slice(0, 4).map(f => new Promise((res, rej) => {
         const fr = new FileReader();
         fr.onload = () => res(fr.result);
         fr.onerror = () => rej(new Error('could not read ' + f.name));
         fr.readAsDataURL(f);
       })));
-      const r = await fetch('/api/vision', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ photos, categories: STORE.zones.map(z => z.category) }),
+
+      const look = await post('/api/vision/look', { photos });
+      stat.innerHTML = `
+        <div class="reading">${esc(look.reading)}</div>
+        <div class="note mt8">Matching what it saw onto the ${BASE_ZONES.length} trained
+        categories&hellip;</div>`;
+
+      const spec = await post('/api/vision/map', {
+        session: look.session,
+        categories: BASE_ZONES.map(z => z.category),
+        archetypes: archetypeCatalog(),
       });
-      const j = await r.json();
-      if (j.error) throw new Error(j.error);
-      applySpec(j);
-      stat.innerHTML = `<b>Rebuilt from your photos.</b> ${esc(j.summary || '')}`;
+      applySpec(spec);
     } catch (e) {
-      stat.innerHTML = `<b>Could not read the photos.</b> ${esc(e.message)}<br>
-        The demo floor is still loaded, so the rest of the walkthrough works.`;
+      stat.innerHTML = `<div class="note"><b>Could not read the photos.</b> ${esc(e.message)}<br>
+        The demo floor is still loaded, so the rest of the walkthrough works.</div>`;
     } finally {
       drop.classList.remove('busy');
     }
   }
+
+  async function post(url, body) {
+    const r = await fetch(url, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const j = await r.json();
+    if (j.error) throw new Error(j.error);
+    return j;
+  }
 }
 
-/** Fold a vision result into the live store, keeping every modelled number intact. */
-function applySpec(spec) {
-  if (spec.size) STORE.size = { ...STORE.size, ...spec.size };
-  if (spec.palette) STORE.palette = { ...STORE.palette, ...spec.palette };
-  if (Array.isArray(spec.posters) && spec.posters.length) STORE.posters = spec.posters;
-  if (Array.isArray(spec.zones)) {
-    for (const z of spec.zones) {
-      const t = STORE.zones.find(x => x.category === z.category);
-      if (t) Object.assign(t, { x: z.x ?? t.x, z: z.z ?? t.z, w: z.w ?? t.w, d: z.d ?? t.d, kind: z.kind || t.kind });
+const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, Number(v)));
+
+/**
+ * Push overlapping fixtures apart.
+ *
+ * One photograph cannot give a floor plan. What the vision pass actually sees is shelf
+ * rows within a fixture, so it tends to return several zones stacked at nearly the same
+ * spot, which renders as one grey mass. Relaxing them apart costs nothing: the scoring
+ * never reads a coordinate, so this moves the picture and not a single number.
+ */
+function separate(zones, size) {
+  const gap = Math.min(0.8, Math.max(0.25, Math.min(size.w, size.d) * 0.05));
+  const fit = z => {
+    z.x = clamp(z.x, z.w / 2 + 0.2, Math.max(z.w / 2 + 0.2, size.w - z.w / 2 - 0.2));
+    z.z = clamp(z.z, z.d / 2 + 0.2, Math.max(z.d / 2 + 0.2, size.d - z.d / 2 - 0.2));
+  };
+  for (let round = 0; round < 80; round++) {
+    let moved = false;
+    for (let i = 0; i < zones.length; i++) {
+      for (let j = i + 1; j < zones.length; j++) {
+        const a = zones[i], b = zones[j];
+        const ox = (a.w + b.w) / 2 + gap - Math.abs(a.x - b.x);
+        const oz = (a.d + b.d) / 2 + gap - Math.abs(a.z - b.z);
+        if (ox <= 0 || oz <= 0) continue;      // already clear on one axis
+        moved = true;
+        const push = (k, by) => {
+          const s = (a[k] <= b[k] ? -1 : 1) * by / 2;
+          a[k] += s; b[k] -= s;
+        };
+        if (ox < oz) push('x', ox); else push('z', oz);
+      }
     }
+    zones.forEach(fit);
+    if (!moved) break;
   }
+  return zones;
+}
+
+/** The rail footer names the store on screen, so it has to follow a rebuild. */
+function railFoot() {
+  $('#rf-store').textContent = STORE.name;
+  $('#rf-zones').textContent = STORE.zones.length;
+}
+
+const archetypeOf = () => ARCHETYPES[STORE.archetype] || ARCHETYPES[DEFAULT_ARCHETYPE];
+
+/**
+ * Fold a vision result into the live store.
+ *
+ * Two rules hold the whole thing together. A zone may only exist if its category came
+ * back from the model with a fitted surface, so nothing on the floor is unscoreable.
+ * And the contested positions come from the archetype, not from the photo, so the
+ * levers stay the ones the model was fitted on.
+ */
+function applySpec(spec) {
+  const arch = ARCHETYPES[spec.store_type] || ARCHETYPES[DEFAULT_ARCHETYPE];
+
+  // Floor. The archetype sets the shape, the photo may resize it within reason.
+  const size = { ...arch.size };
+  if (spec.size && isFinite(spec.size.w) && isFinite(spec.size.d)) {
+    size.w = clamp(spec.size.w, 4, 80);
+    size.d = clamp(spec.size.d, 4, 90);
+    if (isFinite(spec.size.h)) size.h = clamp(spec.size.h, 2.2, 8);
+  }
+  const fx = size.w / arch.size.w, fz = size.d / arch.size.d;
+  const sx = o => ({ ...o, x: o.x * fx, z: o.z * fz, w: (o.w ?? 0) * fx, d: (o.d ?? 0) * fz });
+
+  // Zones: one per matched category, deduped on the best-supported observation.
+  const best = new Map();
+  for (const o of spec.observations || []) {
+    if (!o.match || !BASE_ZONES.some(z => z.category === o.match)) continue;
+    const prior = best.get(o.match);
+    if (!prior || (o.confidence ?? 0) > (prior.confidence ?? 0)) best.set(o.match, o);
+  }
+  const zones = [...best.values()].map(o => {
+    const base = BASE_ZONES.find(z => z.category === o.match);
+    const w = clamp(o.w ?? base.w, 0.6, size.w - 1), d = clamp(o.d ?? base.d, 0.6, size.d - 1);
+    return {
+      ...base, kind: ['gondola', 'cooler', 'island', 'wall'].includes(o.fixture) ? o.fixture : base.kind,
+      w, d,
+      x: clamp(o.x ?? base.x, w / 2 + 0.3, size.w - w / 2 - 0.3),
+      z: clamp(o.z ?? base.z, d / 2 + 0.3, size.d - d / 2 - 0.3),
+    };
+  });
+
+  // A floor with nothing on it cannot be scored, so keep the demo zones and say so.
+  const thin = zones.length < 2;
+  if (!thin) STORE.zones = separate(zones, size);
+
+  STORE.archetype = arch.key;
+  STORE.size = size;
+  STORE.entrance = { ...arch.entrance, x: arch.entrance.x * fx, w: arch.entrance.w * fx };
+  STORE.checkouts = arch.checkouts.map(sx);
+  STORE.slots = arch.slots.map(s => (s.kind === 'display' ? sx(s) : { ...s }));
+  STORE.visits_per_week = arch.visits_per_week;
+  STORE.note = arch.note;
   if (spec.name) STORE.name = spec.name;
+  if (spec.palette) STORE.palette = { ...STORE.palette, ...spec.palette };
+  if (Array.isArray(spec.posters) && spec.posters.length) {
+    STORE.posters = spec.posters.filter(p => isFinite(p.x) && isFinite(p.z) && p.text);
+  }
+
+  // The store as found. Only slots this archetype has, only categories on this floor.
+  const found = Object.fromEntries(STORE.slots.map(s => [s.id, null]));
+  for (const [id, cat] of Object.entries(spec.current || {})) {
+    if (id in found && STORE.zones.some(z => z.category === cat)) found[id] = cat;
+  }
+  STORE.current = found;
+  plan = { ...found };
+
+  VISION = { ...spec, archetype: arch, thin, matched: [...best.values()] };
   baseline = score(STORE.current);
-  go('space');
+  sweep = null;
+  railFoot();
+  if (location.hash !== '#space') go('space'); else render();
+}
+
+/** What the photo gave us, including what it refused to match. */
+function visionHTML(v) {
+  const conf = c => (c == null ? '' : `<span class="cf">${Math.round(c * 100)}%</span>`);
+  const miss = (v.observations || []).filter(o => !o.match);
+  const bad = (v.matched || []).filter(o => (o.confidence ?? 1) < 0.5).length;
+  return `
+    <details class="reading-wrap"><summary>What Simon saw</summary>
+      <div class="reading">${esc(v.reading || '')}</div></details>
+    <div class="vrow mt8">
+      <b>${esc(v.archetype.title)}</b> ${conf(v.store_type_confidence)}
+      <span class="note">${esc(v.store_type_reason || '')}</span>
+    </div>
+    <div class="note mt8">${esc(v.summary || '')}</div>
+    ${v.thin ? `<div class="warn mt8">Only ${v.matched.length} trained category matched, so the
+      demo floor is still in place. The store type and its positions did change.</div>` : ''}
+    <h3 class="vh">Matched to trained categories</h3>
+    ${(v.matched || []).length ? `<ul class="obs">${v.matched.map(o => `
+      <li><span class="ok">&#10003;</span>
+        <div><b>${esc(o.seen || '')}</b> ${conf(o.confidence)}
+        <span class="note">&rarr; ${esc(titleOf(o.match))}. ${esc(o.reason || '')}</span></div></li>`).join('')}
+    </ul>` : '<p class="note">Nothing in the photos matched a trained category.</p>'}
+    ${miss.length ? `<h3 class="vh">Seen, but not scoreable</h3>
+    <ul class="obs">${miss.map(o => `
+      <li><span class="no">&times;</span>
+        <div><b>${esc(o.seen || '')}</b>
+        <span class="note">${esc(o.reason || 'no trained category')}</span></div></li>`).join('')}
+    </ul>` : ''}
+    <p class="note mt8">Excluded groups are left off the floor rather than forced onto the nearest
+    category, because a wrong match would go on to be scored as if it were real.
+    ${bad ? `${bad} match${bad === 1 ? '' : 'es'} below 50% confidence &mdash; worth a look.` : ''}</p>`;
 }
 
 // --------------------------------------------------------------- router
@@ -679,10 +841,13 @@ async function boot() {
     fetch('data/validation.json').then(r => r.json()),
   ]);
   STORE = s; VALID = v;
+  // The trained table. Every category the model fitted a surface for, kept untouched so a
+  // photo can only ever select from it, never add to it.
+  BASE_ZONES = s.zones.map(z => ({ ...z }));
+  STORE.archetype = STORE.archetype || DEFAULT_ARCHETYPE;
   plan = { ...STORE.current };
   baseline = score(STORE.current);
-  $('#rf-store').textContent = STORE.name;
-  $('#rf-zones').textContent = STORE.zones.length;
+  railFoot();
   addEventListener('hashchange', render);
   addEventListener('resize', () => { if (location.hash === '#optimise' && sweep) drawHist(); });
   render();

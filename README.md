@@ -170,9 +170,27 @@ rather than quietly leaving the column blank.
 ## The app
 
 **1 · The space** A 2D plan and a 3D model of the floor, built from the same spec the
-simulator scores. Drop in photos of a real store and Simon reads the fixtures, the poster
-style and the product zones, then rebuilds the floor. Vision runs through the local `claude`
-CLI; if it is unavailable the demo floor stays loaded and everything else still works.
+simulator scores. Drop in photos of a real store and Simon rebuilds the floor from them.
+Vision runs through the local `claude` CLI; if it is unavailable the demo floor stays
+loaded and everything else still works.
+
+Reading a store happens in two passes, because looking and matching fail differently.
+The first pass only looks, with no schema and no category list in front of it, and
+returns plain prose about the fixtures and what is on the shelves. That text goes on
+screen as it lands. The second pass is handed the reading, the photos again, the ten
+categories the model was actually fitted on, and the floor archetypes, and its only job
+is to match one onto the other.
+
+Two rules keep the result scoreable. A zone exists only if its category came back with a
+fitted surface, so nothing lands on the floor that the model cannot score — and when a
+product group has no home in the ten, it is reported as seen and left off rather than
+forced onto the nearest survivor, because a wrong match would go on to be scored as if it
+were real. The contested positions come from the archetype rather than the photo, so the
+levers stay the ones the model was fitted on; what the store type changes is how many
+there are. A corner shop has three positions and no circular at all, a supermarket has
+seven and a front page, and that is a different optimisation problem, not a different
+picture. What the photo does set is cosmetic: the room's dimensions, its colours, and
+where each fixture sits. None of it reaches a number.
 
 **2 · Today** The store as it stands, scored category by category over 12,000 weekly visits.
 Volumes cover the promotable items Simon models in each category, not total category sales.
@@ -207,8 +225,9 @@ model/
 web/
   index.html  app.js   the five screens, scoring, the scenario search
   scene.js             the 3D floor
+  archetypes.js        floor archetypes: what each store type has to fight over
   data/                artifacts the training run writes
-server.py              static host plus the one vision endpoint
+server.py              static host plus the two vision passes
 ```
 
 `web/data/*.json` is generated. Delete it and re-run the pipeline; nothing is hand-maintained.

@@ -9,6 +9,48 @@ const C = {
   cool: 0xa9c0c9, produce: 0x7f9154, ink: 0x15161a, accent: 0x1c6f5a,
   checkout: 0xc9c3b8, shelf: 0xefece6, pad: 0xdbd7d0,
 };
+const BASE_C = { ...C };
+
+const hexInt = h => parseInt(String(h).replace('#', ''), 16);
+const isHex = h => typeof h === 'string' && /^#?[0-9a-f]{6}$/i.test(h);
+/** Nudge a colour lighter (f > 1) or darker (f < 1), to derive shelves and caps. */
+function shade(hex, f) {
+  const n = hexInt(hex), ch = s => Math.min(255, Math.round(((n >> s) & 255) * f));
+  return (ch(16) << 16) | (ch(8) << 8) | ch(0);
+}
+
+/** Blend toward a photo colour without handing the whole room over to it. */
+function toward(hex, base, t = 0.6) {
+  const n = hexInt(hex);
+  const ch = s => Math.round((((n >> s) & 255) * t) + (((base >> s) & 255) * (1 - t)));
+  return (ch(16) << 16) | (ch(8) << 8) | ch(0);
+}
+
+/**
+ * Take the room's colours from the photo, with two limits.
+ *
+ * The accent never moves: green here means a position is responding, so it is data
+ * and not decor, and a store whose walls happen to be red must not end up colouring
+ * its own results. And every colour is only blended part of the way, because a photo
+ * read off a grey shop at dusk will otherwise flatten the whole floor into slabs.
+ */
+function applyPalette(p = {}) {
+  Object.assign(C, BASE_C);
+  if (isHex(p.floor)) {
+    C.floor = toward(p.floor, BASE_C.floor);
+    C.pad = shade('#' + C.floor.toString(16).padStart(6, '0'), 0.95);
+  }
+  if (isHex(p.wall)) C.wall = toward(p.wall, BASE_C.wall);
+  if (isHex(p.fixture)) {
+    C.fixture = toward(p.fixture, BASE_C.fixture);
+    const fh = '#' + C.fixture.toString(16).padStart(6, '0');
+    C.fixtureTop = shade(fh, 0.78);
+    C.shelf = shade(fh, 1.14);
+    C.checkout = shade(fh, 0.94);
+  }
+  if (isHex(p.cool)) C.cool = toward(p.cool, BASE_C.cool);
+  if (isHex(p.produce)) C.produce = toward(p.produce, BASE_C.produce, 0.75);
+}
 
 function box(w, h, d, color, opts = {}) {
   const g = new THREE.BoxGeometry(w, h, d);
@@ -73,6 +115,7 @@ function cooler(w, d, h) {
 export function mountScene(canvas, spec) {
   store = spec;
   cancelAnimationFrame(raf);
+  applyPalette(store.palette);
   const S = store.size;
 
   renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
@@ -81,8 +124,9 @@ export function mountScene(canvas, spec) {
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
   scene = new THREE.Scene();
-  scene.background = new THREE.Color(0xf7f5f2);
-  scene.fog = new THREE.Fog(0xf7f5f2, 46, 96);
+  const air = shade('#' + C.wall.toString(16).padStart(6, '0'), 1.02);
+  scene.background = new THREE.Color(air);
+  scene.fog = new THREE.Fog(air, Math.max(S.w, S.d) * 1.4, Math.max(S.w, S.d) * 2.9);
 
   camera = new THREE.PerspectiveCamera(42, 2, 0.1, 400);
 
@@ -120,7 +164,8 @@ function build() {
   root.add(floor);
 
   // Low walls on three sides, so the floor reads as a room but stays open to the camera.
-  const wh = 1.5;
+  // Kept proportional, or a small shop looks like it is sitting in a bunker.
+  const wh = Math.min(1.5, Math.max(0.75, Math.min(S.w, S.d) * 0.07));
   const mk = (w, d, x, z) => { const b = box(w, wh, d, C.wall); b.position.set(x, wh / 2, z); root.add(b); };
   mk(S.w, 0.18, S.w / 2, S.d);
   mk(0.18, S.d, 0, S.d / 2);
@@ -144,8 +189,11 @@ function build() {
     } else {
       g = gondola(z.w, z.d, 2.1, C.fixture);
     }
+    // The scuff margin around a fixture is a share of the floor, not a fixed metre.
+    // On a corner-shop floor a flat 1.1m of it would swallow the aisles.
+    const pm = Math.min(1.1, Math.max(0.26, Math.min(S.w, S.d) * 0.045));
     const pad = new THREE.Mesh(
-      new THREE.PlaneGeometry(z.w + 1.1, z.d + 1.1),
+      new THREE.PlaneGeometry(z.w + pm, z.d + pm),
       new THREE.MeshStandardMaterial({ color: C.pad, roughness: 0.98 }));
     pad.rotation.x = -Math.PI / 2;
     pad.position.set(z.x, 0.012, z.z);
@@ -213,6 +261,10 @@ export function updateScene(plan, sc) {
 let th = -0.58, ph = 0.78, dist = 31, drag = null, target;
 function orbit(canvas) {
   target = new THREE.Vector3(0, 0.9, 0);
+  // Frame whatever floor we were handed: a corner shop and a supermarket are not the
+  // same distance away.
+  const S = store.size;
+  dist = Math.min(80, Math.max(12, Math.hypot(S.w, S.d) * 0.82));
   canvas.style.cursor = 'grab';
   canvas.onpointerdown = e => {
     drag = { x: e.clientX, y: e.clientY };

@@ -27,9 +27,19 @@ Orbit the 3D floor once, then hit **Plan**.
 > over, five flyer slots. The 3D and the plan are the same object the simulator scores, so
 > nothing here is decoration.
 
-Optional: drop a photo on **Build from photos**. It reads the fixtures, the poster style and
-the product zones and rebuilds the floor. If it is slow or you are offline, say so and move
-on. The demo floor carries the rest.
+Optional: drop a photo on **Build from photos**. Simon says what it saw in plain words,
+then shows what it matched onto its ten trained categories and what it refused to match.
+The refusals are the part worth pointing at:
+
+> It will not put cigarettes somewhere just because it has to put them somewhere. Nothing
+> reaches the floor that the model cannot score.
+
+The store type it picks changes the positions on offer, so a corner shop is a smaller
+problem than a supermarket, not a smaller picture.
+
+This takes up to two minutes over two model calls, so run it before you present and leave
+the result on screen. If it is slow or you are offline, say so and move on: the demo floor
+carries the rest.
 
 ### 1:00 — Today (40s)
 

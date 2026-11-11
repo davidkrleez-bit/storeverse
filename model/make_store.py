@@ -49,6 +49,9 @@ for cat, title, kind, x, z, w, d in ZONES:
 store = {
     "name": "Northgate Market",
     "note": "A 8,800 sq ft neighbourhood supermarket.",
+    # The floor archetype this plan belongs to. web/archetypes.js holds the rest of them,
+    # and a photo may swap this store onto any of them.
+    "archetype": "neighborhood_market",
     "size": {"w": 24.0, "d": 34.0, "h": 3.4},
     "visits_per_week": 12000,
     "entrance": {"x": 4.5, "z": 0.0, "w": 4.0},

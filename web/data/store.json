@@ -1,6 +1,7 @@
 {
  "name": "Northgate Market",
  "note": "A 8,800 sq ft neighbourhood supermarket.",
+ "archetype": "neighborhood_market",
  "size": {
   "w": 24.0,
   "d": 34.0,
