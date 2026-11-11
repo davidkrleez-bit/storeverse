@@ -167,6 +167,18 @@ being coerced to the nearest one.
 If no key is set the script says which models went unscored and the app shows that note,
 rather than quietly leaving the column blank.
 
+## Live demo
+
+https://davidkrleez-bit.github.io/planomix/
+
+The floor, the fitted surface, the scenario editor and the 1,000-plan search all run in
+the browser, so the walkthrough stands up on a static host. Reading a store from
+photographs does not: it calls a model through the local `claude` CLI, and needs
+`server.py`. The page says so when asked there.
+
+`./deploy.sh` pushes the current `web/` to it. Only `web/` goes up, because only `web/`
+is served; the pipeline, the vision server and the model code stay here.
+
 ## The app
 
 **1 · The space** A 2D plan and a 3D model of the floor, built from the same spec the
