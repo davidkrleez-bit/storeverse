@@ -19,12 +19,16 @@ let sweep = null;     // last optimisation run
 let BASE_ZONES = null; // every trained category with its fitted surface, kept pristine
 let GOAL = null;      // the written goal, once it has been turned into search parameters
 
-// The example goal. A real one: a shopkeeper with a new line coming in, who wants it to
-// sell and to be understood, and who has not read a word about merchandising.
-const SAMPLE_GOAL = "I have a new product collaboration coming in and want to sell this "
-  + "product as much as possible in the next coming weeks. How should I display this product "
-  + "and promote it for maximum revenue from this product (make it clear what it is, this new "
-  + "chip snack)";
+// The example goal, and a real one: a shopkeeper weighing a supplier's two-week promotion
+// against the three positions they actually have to give it. A template literal, so the
+// blank lines between paragraphs are the real thing.
+const SAMPLE_GOAL = `We run Fortuna Super, an 8,600 sq ft neighborhood supermarket with around 550 customers a day.
+
+Monster Energy just offered us a two-week promotion with extra incentives if we hit their sales target.
+
+We're considering giving them our entrance display, using an aisle endcap, or featuring them in our weekly flyer.
+
+Which option would make the most sense for our store?`;
 let VISION = null;    // last photo read, so the match can stay on screen
 
 // ------------------------------------------------------------------ scoring
@@ -375,7 +379,8 @@ function slotRow(s) {
 const CAT_WORDS = {
   'BAG SNACKS': ['chip', 'crisp', 'snack', 'tortilla', 'popcorn', 'pretzel', 'nacho'],
   'SOFT DRINKS': ['soft drink', 'soda', 'cola', 'fizzy', 'pop', 'lemonade', 'juice'],
-  'ISOTONIC DRINKS': ['sports drink', 'isotonic', 'electrolyte', 'energy drink', 'gatorade'],
+  'ISOTONIC DRINKS': ['sports drink', 'isotonic', 'electrolyte', 'energy drink', 'gatorade',
+    'monster', 'red bull', 'energy'],
   'CRACKERS/MISC BKD FD': ['cracker', 'biscuit', 'cookie', 'wafer'],
   'CHEESE': ['cheese'],
   'YOGURT': ['yogurt', 'yoghurt', 'dairy'],
@@ -449,6 +454,140 @@ function goalHTML(g) {
   </div>`;
 }
 
+// --------------------------------------------------------------- the options
+//
+// When a goal names the positions on offer - "the entrance display, an aisle endcap, or
+// the weekly flyer" - that question has a short answer, and it does not need a thousand
+// random plans to find it. There are only so many places the thing can go, so score each
+// one and say which wins.
+//
+// Each option is today's floor with the one category moved, which is the honest
+// comparison: taking a position means taking it off whatever holds it now, and the score
+// carries that cost.
+
+function planWith(target, slotIds) {
+  const p = { ...STORE.current };
+  for (const id of Object.keys(p)) if (p[id] === target) p[id] = null;
+  for (const id of slotIds) p[id] = target;
+  return p;
+}
+
+function optionsFor(target) {
+  const free = (kind, level) => STORE.slots.filter(s => s.kind === kind && s.level === level);
+  const d2 = free('display', 2)[0], d1 = free('display', 1)[0];
+  const m2 = free('mailer', 2)[0], m1 = free('mailer', 1)[0];
+  const out = [];
+  const add = (label, note, slots) => {
+    if (!slots.every(Boolean)) return;
+    const pl = planWith(target, slots.map(s => s.id));
+    const sc = score(pl);
+    const row = sc.rows.find(x => x.category === target);
+    out.push({ label, note, plan: pl, target: row ? row.revenue : 0, store: sc.revenue });
+  };
+
+  const now = score(STORE.current);
+  const nowRow = now.rows.find(x => x.category === target);
+  out.push({ label: 'Leave it where it is', note: 'the floor as it stands today',
+             plan: { ...STORE.current }, target: nowRow ? nowRow.revenue : 0,
+             store: now.revenue, isNow: true });
+
+  add('Entrance display', d2 ? d2.label : '', [d2]);
+  add('Aisle endcap', d1 ? d1.label : '', [d1]);
+  add('Weekly flyer, front page', m2 ? m2.label : '', [m2]);
+  add('Weekly flyer, inside page', m1 ? m1.label : '', [m1]);
+  add('Entrance display and the flyer front', 'both at once, if they will give you both', [d2, m2]);
+  const combo = out[out.length - 1];
+  if (combo && combo.label.includes('and the')) combo.combo = true;
+  return out;
+}
+
+/** Ranked bars: what each option is worth to the category, against leaving it alone. */
+function barsOptions(opts, now, label, pick) {
+  const W = 760, rowH = 40, padL = 232, padR = 128, top = 24;
+  const H = top + opts.length * rowH + 26;
+  const max = Math.max(...opts.map(o => o.target)) * 1.04;
+  const x = v => padL + (v / max) * (W - padL - padR);
+  // The highlighted bar is the one the verdict recommends, not merely the longest.
+  const best = pick || opts.reduce((a, b) => (b.target > a.target ? b : a));
+
+  const rows = opts.map((o, i) => {
+    const y = top + i * rowH, h = 20, w = Math.max(3, x(o.target) - padL);
+    const up = (o.target - now) / now * 100;
+    const win = o === best;
+    const storeUp = o.store - opts.find(q => q.isNow).store;
+    return `<g class="bar-g">
+      <title>${sx(o.label)}: ${sx(label)} ${money(o.target)} a week${
+        o.isNow ? '' : `, ${up >= 0 ? 'up' : 'down'} ${Math.abs(up).toFixed(1)}%`}. Whole store ${
+        storeUp >= 0 ? '+' : ''}${money(storeUp)}.</title>
+      <text x="${padL - 12}" y="${y + h / 2 + 1}" text-anchor="end" class="vz-lab${win ? ' on' : ''}">${sx(o.label)}</text>
+      ${o.note ? `<text x="${padL - 12}" y="${y + h / 2 + 14}" text-anchor="end" class="vz-ax">${sx(o.note)}</text>` : ''}
+      <rect x="${padL}" y="${y}" width="${w}" height="${h}" rx="4"
+            fill="${win ? VIZ.ours : o.isNow ? '#d9d5cd' : VIZ.quiet}"></rect>
+      <text x="${padL + w + 9}" y="${y + h / 2 + 4}" class="vz-val${win ? ' on' : ''}">${money(o.target)}</text>
+      ${o.isNow ? '' : `<text x="${W - 4}" y="${y + h / 2 + 4}" text-anchor="end"
+        class="vz-flag ${up >= 0 ? 'ok' : 'no'}">${up >= 0 ? '+' : ''}${up.toFixed(0)}%</text>`}
+    </g>`;
+  }).join('');
+
+  return `<svg viewBox="0 0 ${W} ${H}" class="vz" role="img"
+      aria-label="Weekly revenue for ${sx(label)} under each placement option">
+    <line x1="${padL}" y1="${top - 6}" x2="${padL}" y2="${H - 22}" stroke="${VIZ.grid}" stroke-width="1"/>
+    <text x="${padL}" y="${H - 8}" class="vz-ax">$0</text>
+    <text x="${x(max)}" y="${H - 8}" text-anchor="end" class="vz-ax">${money(max)} a week</text>
+    ${rows}
+  </svg>`;
+}
+
+function optionsHTML() {
+  if (!GOAL || !GOAL.target) return '';
+  const label = titleOf(GOAL.target);
+  const opts = optionsFor(GOAL.target);
+  const now = opts.find(o => o.isNow);
+  const singles = opts.filter(o => !o.isNow && !o.combo);
+  const best = singles.reduce((a, b) => (b.target > a.target ? b : a));
+  const combo = opts.find(o => o.combo);
+  const pc = o => (o.target - now.target) / now.target * 100;
+  const cost = o => o.store - now.store;
+
+  // The biggest number is not always the right answer. If another option is within a
+  // whisker on the category and costs the rest of the shop materially less, that is the
+  // better trade and the reader should be told so plainly.
+  const value = singles
+    .filter(o => o !== best && pc(o) >= pc(best) - 1.5 && cost(o) > cost(best) + 5)
+    .reduce((a, b) => (!a || cost(b) > cost(a) ? b : a), null);
+  return `
+  <div class="card mt">
+    <div class="chead"><h2>The options on the table</h2>${dir(false, 'weekly revenue for ' + label)}</div>
+    <p class="hint">Each row is today's floor with ${esc(label)} moved to that position and
+    nothing else touched. Taking a position means taking it off whatever holds it now, and
+    these numbers carry that cost.</p>
+    ${barsOptions(opts, now.target, label, value || best)}
+    <div class="lead mt">
+      <b>${esc((value || best).label)} &mdash; ${money((value || best).target)} a week for
+      ${esc(label)}, up ${pc(value || best).toFixed(0)}%</b>
+      <span>${value
+        ? `${esc(best.label)} edges it on the category &mdash; ${pc(best).toFixed(0)}% against
+           ${pc(value).toFixed(0)}% &mdash; but costs the rest of the shop
+           ${money(-cost(best))} a week against ${money(-cost(value))}.
+           ${(pc(best) - pc(value)).toFixed(1)} points of lift is not worth
+           ${money(cost(value) - cost(best))} a week of someone else's trade.`
+        : `The rest of the shop ${cost(best) >= 0 ? `gains ${money(cost(best))}`
+           : `gives up ${money(-cost(best))}`} a week, because the position comes off whatever
+           holds it now.`}
+      ${combo ? `Taking the entrance display <em>and</em> the flyer front page reaches
+        ${money(combo.target)}, up ${pc(combo).toFixed(0)}%, at ${money(-cost(combo))} to the
+        rest of the shop &mdash; worth asking for if the incentive covers it.` : ''}</span>
+    </div>
+    <p class="note mt8">Units cover the promotable items the model carries in each category,
+    not the category's total sales, so these are the figures that move with the decision
+    rather than the shelf's whole takings. This is the whole answer to a question about one
+    category and a
+    handful of positions, and it is exact: there is nothing to search. The thousand-plan
+    run below is a different question &mdash; what the best floor looks like overall, with
+    every category free to move at once.</p>
+  </div>`;
+}
+
 VIEWS.optimise = () => {
   const g = GOAL;
   const forCat = g && g.target && g.objective === 'category_revenue';
@@ -477,11 +616,17 @@ VIEWS.optimise = () => {
     <div id="goalout">${goalHTML(g)}</div>
   </div>
 
-  <div class="row mt">
-    <button id="run">${forCat ? `Find the best plan for ${esc(titleOf(g.target))}` : 'Run 1,000 scenarios'}</button>
+  <div class="card mt">
+    <div class="chead"><h2>Or search the whole floor</h2></div>
+    <p class="hint">A thousand complete plans, every category free to move at once, scored
+    against the same shoppers.${forCat ? ` Kept by what it does for ${esc(titleOf(g.target))}.` : ''}</p>
+  <div class="row">
+    <button id="run">${forCat ? `Search for ${esc(titleOf(g.target))}` : 'Run 1,000 scenarios'}</button>
     <button class="ghost" id="apply" ${sweep ? '' : 'disabled'}>Apply the winner</button>
   </div>
-  <div id="out" class="mt">${sweep ? sweepHTML() : '<p class="note">Not run yet.</p>'}</div>`;
+  ${optionsHTML()}
+  <div id="out" class="mt8">${sweep ? sweepHTML() : '<p class="note">Not run yet.</p>'}</div>
+  </div>`;
 
   $('#run').onclick = runSweep;
   $('#samplegoal').onclick = () => { $('#goal').value = SAMPLE_GOAL; };
@@ -592,8 +737,8 @@ function sweepHTML() {
       </div>
     </div>
   </div>
-  <div class="card mt">
-    <h2>The winning plan, category by category</h2>
+  <details class="card mt fold">
+    <summary>The winning plan, category by category</summary>
     <table>
       <thead><tr><th>Category</th><th>Position</th><th>Flyer</th>
         <th class="num">Units/wk</th><th class="num">vs today</th></tr></thead>
@@ -608,7 +753,7 @@ function sweepHTML() {
           <td class="num ${cl}">${(dv >= 0 ? '+' : '') + n1(dv)}</td></tr>`;
       }).join('')}</tbody>
     </table>
-  </div>`;
+  </details>`;
 }
 
 function drawHist() {
@@ -1168,7 +1313,8 @@ function applySpec(spec) {
   STORE.entrance = { ...arch.entrance, x: arch.entrance.x * fx, w: arch.entrance.w * fx };
   STORE.checkouts = arch.checkouts.map(sx);
   STORE.slots = arch.slots.map(s => (s.kind === 'display' ? sx(s) : { ...s }));
-  STORE.visits_per_week = arch.visits_per_week;
+  STORE.visits_per_week = Number.isFinite(spec.visits_per_week) && spec.visits_per_week > 0
+    ? spec.visits_per_week : arch.visits_per_week;
   STORE.note = arch.note;
   if (spec.name) STORE.name = spec.name;
   if (spec.palette) STORE.palette = { ...STORE.palette, ...spec.palette };
@@ -1197,7 +1343,8 @@ function visionHTML(v) {
   const miss = (v.observations || []).filter(o => !o.match);
   const bad = (v.matched || []).filter(o => (o.confidence ?? 1) < 0.5).length;
   return `
-    ${v.source ? `<div class="srcline"><b>${esc(v.source.label)}</b> &middot; ${esc(v.source.how)}
+    ${v.source ? `<div class="srcline"><b>${esc(v.source.label)}</b>${
+      v.source.kind === 'authored' ? ' <span class="tag">demo layout</span>' : ''} &middot; ${esc(v.source.how)}
       <a href="${esc(v.source.url)}" target="_blank" rel="noopener noreferrer">the scan</a></div>` : ''}
     <details class="reading-wrap"><summary>What StoreVerse saw</summary>
       <div class="reading">${esc(v.reading || '')}</div></details>

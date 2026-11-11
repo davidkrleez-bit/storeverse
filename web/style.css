@@ -166,6 +166,13 @@ textarea#goal:focus{outline:2px solid #cfe0d9;outline-offset:1px;border-color:va
 .chipv.on{background:var(--accent-soft);color:var(--accent)}
 .chipv.quiet{background:transparent;border:1px dashed var(--line);color:#8d8a84;font-weight:500}
 
+details.fold>summary{font-size:15px;font-weight:620;letter-spacing:-.01em;cursor:pointer;
+ list-style:none;color:var(--ink)}
+details.fold>summary::-webkit-details-marker{display:none}
+details.fold>summary::before{content:"B8 ";color:var(--ink2);font-size:11px}
+details.fold[open]>summary::before{content:"BE "}
+details.fold>summary+table,details.fold>table{margin-top:12px}
+
 /* photo read */
 .reading-wrap{margin-top:10px}
 .reading-wrap summary{font-size:12px;letter-spacing:.06em;text-transform:uppercase;

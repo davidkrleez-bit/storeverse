@@ -194,12 +194,20 @@ outside what this simulator moves.
 A goal aimed at one category changes what "best" means, so the search optimises that
 category's revenue and reports what the rest of the shop gave up for it.
 
+When the goal is about one category and a handful of positions - "the entrance display, an
+aisle endcap, or the weekly flyer" - there is nothing to search. Each option is scored
+exactly: today's floor with that one category moved, carrying the cost of taking the
+position off whatever holds it. The verdict weighs that cost rather than reading off the
+longest bar, so the option that wins the category by a tenth of a point and costs the rest
+of the shop three times as much does not get recommended.
+
 ## The example store
 
-`web/data/example.json` is Fortuna Supermarket, read from four views of a public
-Matterport scan through the same two vision passes a photo upload uses. Nothing in it was
-hand-written. Four of its fourteen product groups matched a trained category; the rest are
-listed as seen and left off the floor, which is the point.
+`web/data/example.json` is Fortuna Super: an 8,600 sq ft neighbourhood supermarket with
+550 customers a day, laid out from four overhead views of a public Matterport scan onto
+the standard neighbourhood floorplan, so every trained category is on the floor and the
+contested positions sit where they were defined. It is labelled a demo layout on screen,
+because a photo upload reads a store the other way round and usually matches fewer.
 
 ## The app
 
