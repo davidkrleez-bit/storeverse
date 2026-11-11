@@ -7,6 +7,10 @@ of real grocery receipts across a chain, then scores any floor plan you give it.
 if bacon took the entrance endcap", and the answer comes from a measured causal effect
 rather than a rule of thumb.
 
+**Live demo:** https://davidkrleez-bit.github.io/planomix/ &nbsp;·&nbsp; no install, runs in
+the browser. Reading a store from photographs is the one part that needs the local server
+below; everything else on that page is the real thing.
+
 ```
 python model/prepare_data.py    # fetch and convert the chain's records  (~1 min)
 python model/pipeline.py        # train and validate                     (~4 min)
