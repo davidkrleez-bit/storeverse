@@ -169,9 +169,25 @@ textarea#goal:focus{outline:2px solid #cfe0d9;outline-offset:1px;border-color:va
 details.fold>summary{font-size:15px;font-weight:620;letter-spacing:-.01em;cursor:pointer;
  list-style:none;color:var(--ink)}
 details.fold>summary::-webkit-details-marker{display:none}
-details.fold>summary::before{content:"B8 ";color:var(--ink2);font-size:11px}
-details.fold[open]>summary::before{content:"BE "}
+details.fold>summary::before{content:"▸ ";color:var(--ink2);font-size:11px}
+details.fold[open]>summary::before{content:"▾ "}
 details.fold>summary+table,details.fold>table{margin-top:12px}
+
+/* plan grid */
+svg.grid{max-width:680px;margin:10px 0 4px}
+.gcell{cursor:pointer;transition:opacity .08s}
+.gcell:hover{opacity:.62}
+.gcell.on{stroke:#15161a;stroke-width:2.2}
+.gscale{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-top:6px}
+.gscale .ramp{display:inline-flex;gap:2px}
+.gscale .ramp i{width:15px;height:11px;border-radius:2px;display:block}
+.gsum{font-size:12px;color:var(--ink2);margin-left:auto;font-variant-numeric:tabular-nums}
+.gpick{margin-top:14px;padding-top:13px;border-top:1px solid #f1efeb}
+.gpickhead{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;font-size:14px;margin-bottom:9px}
+.gpickhead .up{color:var(--up);font-weight:650} .gpickhead .down{color:var(--down);font-weight:650}
+button.small{padding:5px 11px;font-size:12.5px;margin-left:auto}
+table.gtab{font-size:13px}
+table.gtab td,table.gtab th{padding:6px 9px}
 
 /* photo read */
 .reading-wrap{margin-top:10px}

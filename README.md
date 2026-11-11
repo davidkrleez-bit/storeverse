@@ -209,6 +209,23 @@ the standard neighbourhood floorplan, so every trained category is on the floor 
 contested positions sit where they were defined. It is labelled a demo layout on screen,
 because a photo upload reads a store the other way round and usually matches fewer.
 
+## The thousand plans
+
+The search is a random sweep, not a solver. One pass builds 1,000 complete plans from a
+fixed seed, so the same floor always gives the same thousand. Each plan shuffles the
+categories, deals them onto the display positions and the flyer slots, and leaves a slot
+empty 12% of the time so "fill everything" has to earn its place. Each plan is then scored
+in closed form against the fitted surface - no sampling, no noise - and the only thing
+separating a good plan from a bad one is which category ended up on which position.
+
+Every plan is kept, so the grid can show all thousand at once: one cell each, best in the
+top-left, worst in the bottom-right, coloured by the gap to today's floor. Blue beats
+today, red loses to it. Clicking a cell prints the layout behind it.
+
+Underneath, the grid reports what separates the best tenth from the worst tenth - which
+category holds which kind of position, and how often - which is the part a merchandiser
+can act on without reading a single plan.
+
 ## The app
 
 **1 · The space** A 2D plan and a 3D model of the floor, built from the same spec the

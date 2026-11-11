@@ -588,6 +588,169 @@ function optionsHTML() {
   </div>`;
 }
 
+// ----------------------------------------------------------------- the grid
+//
+// A thousand plans as a thousand cells, best in the top-left, worst in the bottom-right.
+//
+// Colour is diverging rather than sequential, because the question is not "how big" but
+// "better or worse than what we do today": two hues with a neutral midpoint, so the line
+// between winning and losing is a colour boundary you can see rather than a number you
+// have to read. Today's floor is the midpoint by construction.
+
+const DIV_UP = ['#cde2fb', '#9ec5f4', '#5598e7', '#2a78d6', '#184f95'];   // better than today
+const DIV_DN = ['#fbdcdc', '#f4acab', '#ec7a79', '#e34948', '#a72c2b'];   // worse
+const DIV_MID = '#f0efec';
+
+/** Nine steps, symmetric about today, so equal distances read as equal colours. */
+function divColor(delta, span) {
+  if (!span) return DIV_MID;
+  const t = Math.max(-1, Math.min(1, delta / span));
+  if (Math.abs(t) < 0.04) return DIV_MID;
+  const arm = t > 0 ? DIV_UP : DIV_DN;
+  return arm[Math.min(arm.length - 1, Math.floor(Math.abs(t) * arm.length))];
+}
+
+/**
+ * What the winners do that the losers do not.
+ *
+ * For each category, how often it holds a prime display in the best tenth of plans
+ * against the worst tenth. A category that is on an endcap in nearly every good plan and
+ * almost no bad one is the lever doing the work, and that is worth saying in words.
+ */
+function gridInsights(rank) {
+  const n = Math.max(20, Math.round(rank.length / 10));
+  const top = rank.slice(0, n), bot = rank.slice(-n);
+  const share = (set, cat, kind, level) => set.filter(r => {
+    const lv = kind === 'display' ? r.lv.d[cat] : r.lv.m[cat];
+    return lv >= level;
+  }).length / set.length;
+
+  const out = [];
+  for (const z of STORE.zones) {
+    for (const [kind, level, what] of [['display', 2, 'a prime display position'],
+                                       ['mailer', 2, 'the flyer front page'],
+                                       ['display', 1, 'any display position']]) {
+      const t = share(top, z.category, kind, level), b = share(bot, z.category, kind, level);
+      if (t - b > 0.25) out.push({ cat: z.category, title: z.title, what, t, b, gap: t - b });
+    }
+  }
+  // Keep the strongest claim per category, then the strongest claims overall.
+  const byCat = new Map();
+  for (const o of out.sort((a, b) => b.gap - a.gap)) if (!byCat.has(o.cat)) byCat.set(o.cat, o);
+  return [...byCat.values()].slice(0, 4);
+}
+
+function gridHTML() {
+  if (!sweep || !sweep.plans) return '';
+  const forCat = sweep.goal && sweep.goal.target && sweep.goal.objective === 'category_revenue';
+  const base = forCat ? objectiveOf(baseline) : baseline.revenue;
+  const label = forCat ? titleOf(sweep.goal.target) + ' revenue' : 'store revenue';
+
+  const rank = sweep.results.map((v, i) => ({ v, i, plan: sweep.plans[i], lv: sweep.levels[i] }))
+    .sort((a, b) => b.v - a.v);
+  const span = Math.max(...rank.map(r => Math.abs(r.v - base))) || 1;
+  const better = rank.filter(r => r.v > base).length;
+  const distinct = new Set(rank.map(r => r.v.toFixed(4))).size;
+
+  const COLS = 40, CELL = 15, GAP = 1.6, PAD = 2;
+  const ROWS = Math.ceil(rank.length / COLS);
+  const W = COLS * (CELL + GAP) + PAD * 2, H = ROWS * (CELL + GAP) + PAD * 2;
+
+  const cells = rank.map((r, k) => {
+    const x = PAD + (k % COLS) * (CELL + GAP), y = PAD + Math.floor(k / COLS) * (CELL + GAP);
+    const pc = (r.v - base) / base * 100;
+    return `<rect class="gcell" data-k="${k}" x="${x}" y="${y}" width="${CELL}" height="${CELL}"
+      rx="2.5" fill="${divColor(r.v - base, span)}"><title>#${k + 1} of ${rank.length}  ${money(r.v)}  ${
+      pc >= 0 ? '+' : ''}${pc.toFixed(1)}% against today</title></rect>`;
+  }).join('');
+
+  const legend = [...DIV_DN].reverse().concat([DIV_MID], DIV_UP)
+    .map(c => `<i style="background:${c}"></i>`).join('');
+
+  const ins = gridInsights(rank);
+  const n10 = Math.max(20, Math.round(rank.length / 10));
+
+  return `
+  <div class="card mt">
+    <div class="chead"><h2>Every plan the search tried</h2>${dir(false, label)}</div>
+    <p class="hint">One cell per plan, best in the top-left, worst in the bottom-right.
+    Colour is the gap to today's floor: blue beats it, red loses to it, and the pale band
+    through the middle is the plans that may as well be today. Hover a cell for its figure,
+    click one to read the layout that produced it.</p>
+    <svg viewBox="0 0 ${W} ${H}" class="vz grid" id="planGrid" role="img"
+      aria-label="A thousand plans, ranked, coloured by their gap to today's floor">${cells}</svg>
+    ${distinct < 40 ? `<p class="note">These ${n0(rank.length)} plans produce only
+      <b>${distinct} distinct outcomes</b> for ${esc(label)}, because one category can hold
+      one display position and one flyer slot and nothing else reaches it. The search is
+      really a choice between ${distinct} answers, and the grid shows how many ways there
+      are to arrive at each.</p>` : ''}
+    <div class="gscale">
+      <span class="note">worse than today</span>
+      <span class="ramp">${legend}</span>
+      <span class="note">better</span>
+      <span class="gsum">${n0(better)} of ${n0(rank.length)} beat today
+        &middot; best ${money(rank[0].v)} &middot; worst ${money(rank[rank.length - 1].v)}</span>
+    </div>
+    <div id="gpick" class="gpick"><p class="note">Click any cell to see its layout.</p></div>
+    ${ins.length ? `
+    <h3 class="vh">What the best ${n0(n10)} do that the worst ${n0(n10)} do not</h3>
+    <ul class="obs">${ins.map(o => `<li><span class="ok">&#9679;</span><div>
+      <b>${esc(o.title)}</b> holds ${esc(o.what)} in
+      <b>${(o.t * 100).toFixed(0)}%</b> of the best plans and ${(o.b * 100).toFixed(0)}% of the
+      worst.<span class="note">A gap of ${(o.gap * 100).toFixed(0)} points: this is a lever
+      doing real work, not a coincidence of the shuffle.</span></div></li>`).join('')}</ul>` : ''}
+  </div>`;
+}
+
+/** The layout behind one cell, written out the way a person would have to carry it out. */
+function pickHTML(k) {
+  const forCat = sweep.goal && sweep.goal.target && sweep.goal.objective === 'category_revenue';
+  const base = forCat ? objectiveOf(baseline) : baseline.revenue;
+  const rank = sweep.results.map((v, i) => ({ v, i, plan: sweep.plans[i] }))
+    .sort((a, b) => b.v - a.v);
+  const r = rank[k];
+  if (!r) return '';
+  const sc = score(r.plan);
+  const pc = (r.v - base) / base * 100;
+  const moves = STORE.slots.filter(s => (r.plan[s.id] || null) !== (STORE.current[s.id] || null));
+  return `
+    <div class="gpickhead">
+      <b>Plan #${k + 1} of ${n0(rank.length)}</b>
+      <span class="${pc >= 0 ? 'up' : 'down'}">${money(r.v)} &middot; ${pc >= 0 ? '+' : ''}${pc.toFixed(1)}% against today</span>
+      <span class="note">whole store ${money(sc.revenue)}</span>
+      <button class="ghost small" id="gapply">Put this plan on the floor</button>
+    </div>
+    <table class="gtab"><thead><tr><th>Position</th><th>This plan</th><th>Today</th></tr></thead>
+      <tbody>${STORE.slots.map(s => {
+        const a = r.plan[s.id] || null, b = STORE.current[s.id] || null;
+        return `<tr${a !== b ? ' class="win"' : ''}>
+          <td><b>${esc(s.label)}</b></td>
+          <td>${a ? esc(titleOf(a)) : '<span class="note">empty</span>'}</td>
+          <td class="note">${b ? esc(titleOf(b)) : 'empty'}</td></tr>`;
+      }).join('')}</tbody></table>
+    <p class="note mt8">${moves.length} position${moves.length === 1 ? '' : 's'} differ from
+    today's floor.</p>`;
+}
+
+function wireGrid() {
+  const g = $('#planGrid');
+  if (!g) return;
+  g.onclick = e => {
+    const cell = e.target.closest('.gcell');
+    if (!cell) return;
+    for (const c of g.querySelectorAll('.gcell.on')) c.classList.remove('on');
+    cell.classList.add('on');
+    $('#gpick').innerHTML = pickHTML(+cell.dataset.k);
+    const ap = $('#gapply');
+    if (ap) ap.onclick = () => {
+      const rank = sweep.results.map((v, i) => ({ v, plan: sweep.plans[i] }))
+        .sort((a, b) => b.v - a.v);
+      plan = { ...rank[+cell.dataset.k].plan };
+      go('scenario');
+    };
+  };
+}
+
 VIEWS.optimise = () => {
   const g = GOAL;
   const forCat = g && g.target && g.objective === 'category_revenue';
@@ -626,7 +789,8 @@ VIEWS.optimise = () => {
   </div>
   ${optionsHTML()}
   <div id="out" class="mt8">${sweep ? sweepHTML() : '<p class="note">Not run yet.</p>'}</div>
-  </div>`;
+  </div>
+  ${sweep ? gridHTML() : ''}`;
 
   $('#run').onclick = runSweep;
   $('#samplegoal').onclick = () => { $('#goal').value = SAMPLE_GOAL; };
@@ -645,7 +809,7 @@ VIEWS.optimise = () => {
   if (ap && sweep) ap.onclick = () => { plan = { ...sweep.best.assign }; go('scenario'); };
   // The canvas is new every time this view is rebuilt, so it has to be redrawn here
   // rather than only on navigation, or the run leaves an empty box behind.
-  if (sweep) drawHist();
+  if (sweep) { drawHist(); wireGrid(); }
 };
 
 /** Sample complete plans at random, keeping slot scarcity and one-slot-per-category honest. */
@@ -669,17 +833,19 @@ function randomPlan(rnd) {
 function runSweep() {
   let seed = 20261111;
   const rnd = () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296;
-  const N = 1000, results = [], running = [];
+  const N = 1000, results = [], running = [], plans = [], lvls = [];
   let best = null, bestObj = -Infinity;
   for (let i = 0; i < N; i++) {
     const assign = randomPlan(rnd);
     const sc = score(assign);
     const obj = objectiveOf(sc);
     results.push(obj);
+    plans.push(assign);
+    lvls.push({ d: sc.d, m: sc.m });
     if (!best || obj > bestObj) { best = { assign, ...sc }; bestObj = obj; }
     running.push(bestObj);
   }
-  sweep = { N, results, running, best, bestObj, goal: GOAL };
+  sweep = { N, results, running, plans, levels: lvls, best, bestObj, goal: GOAL };
   VIEWS.optimise();
 }
 
