@@ -667,15 +667,28 @@ function wireUpload() {
   }
 
   async function post(url, body) {
-    const r = await fetch(url, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
+    let r;
+    try {
+      r = await fetch(url, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+    } catch {
+      throw new Error(OFFLINE);
+    }
+    // A static host has no vision endpoint and answers with its own 404 page, so parsing
+    // that as JSON would surface a syntax error instead of the actual reason.
+    if (!r.ok || !(r.headers.get('content-type') || '').includes('json')) {
+      throw new Error(OFFLINE);
+    }
     const j = await r.json();
     if (j.error) throw new Error(j.error);
     return j;
   }
 }
+
+const OFFLINE = 'reading photos needs the local server, so run python server.py and open '
+  + 'localhost:8000. Everything else on this page runs in the browser and works here.';
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, Number(v)));
 
