@@ -15,10 +15,7 @@ body{background:var(--bg);color:var(--ink);
 .rail{width:216px;flex:none;background:var(--rail);border-right:1px solid var(--line);
  display:flex;flex-direction:column;padding:14px 12px;position:sticky;top:0;height:100vh}
 .brand{display:flex;align-items:center;gap:9px;padding:4px 6px 18px}
-.mark{width:30px;height:30px;border-radius:8px;background:var(--ink);display:flex;
- align-items:flex-end;justify-content:center;gap:2.5px;padding-bottom:7px}
-.mark i{width:3px;background:#fff;border-radius:1px}
-.mark i:nth-child(1){height:6px}.mark i:nth-child(2){height:10px}.mark i:nth-child(3){height:14px}
+.mark{width:30px;height:30px;border-radius:8px;display:block;flex:none}
 .brandname{font-weight:620;letter-spacing:-.02em;font-size:15.5px}
 nav{display:flex;flex-direction:column;gap:1px}
 nav a{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:9px;

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" role="img" aria-label="StoreVerse">
+  <!-- Three aisles on an isometric floor, the promoted one picked out in the accent.
+       No outline around them: at favicon size a hairline frame turns to noise, and the
+       stroke angle alone is enough to read as a floor rather than a list. -->
+  <rect width="24" height="24" rx="6" fill="#15161a"/>
+  <g stroke-linecap="round" fill="none" stroke-width="2.6">
+    <path d="M9.6 5.9 17.6 10.4" stroke="#4fd1a0"/>
+    <path d="M8.0 8.8 16.0 13.2" stroke="#ffffff"/>
+    <path d="M6.4 11.6 14.4 16.1" stroke="#ffffff" opacity=".72"/>
+  </g>
+</svg>
