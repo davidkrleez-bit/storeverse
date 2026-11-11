@@ -17,7 +17,7 @@ on the desktop if you want to show the vision path.
 
 > Every grocery store has two or three positions that actually sell. Entrance endcap, the
 > flyer front page, the mid-floor island. Deciding what goes there is worth millions a year
-> and it is almost always decided by whoever shouts loudest. Simon decides it from receipts.
+> and it is almost always decided by whoever shouts loudest. StoreVerse decides it from receipts.
 
 ### 0:20 — The space (40s)
 
@@ -27,7 +27,7 @@ Orbit the 3D floor once, then hit **Plan**.
 > over, five flyer slots. The 3D and the plan are the same object the simulator scores, so
 > nothing here is decoration.
 
-Optional: drop a photo on **Build from photos**. Simon says what it saw in plain words,
+Optional: drop a photo on **Build from photos**. StoreVerse says what it saw in plain words,
 then shows what it matched onto its ten trained categories and what it refused to match.
 The refusals are the part worth pointing at:
 
@@ -59,7 +59,7 @@ Pause.
 
 Screen 3. Put **Bacon** on **Entrance endcap (left)** and into **Flyer interior A**.
 
-> One move. Simon rescores the whole floor against the same shoppers, so the only thing that
+> One move. StoreVerse rescores the whole floor against the same shoppers, so the only thing that
 > changed is the plan.
 
 Point at the delta.
@@ -84,12 +84,12 @@ Point at the three numbers, then the histogram.
 
 **Model check**. This is the part that wins or loses the judging. Go slowly.
 
-> Simon-1 never sees the last six weeks. It is then scored on all 559,090 decisions in them.
+> StoreVerse-1 never sees the last six weeks. It is then scored on all 559,090 decisions in them.
 > Best AUC, best log loss. But look at the second table, because that is the real claim.
 
 Point at the lift table.
 
-> Measured is the lift read off holdout receipts with a confidence interval. Simon-1 is
+> Measured is the lift read off holdout receipts with a confidence interval. StoreVerse-1 is
 > inside the interval on all four levers, mean error 0.032. Then everyone else.
 >
 > Ignore-promotion: zero out of four. The average-lift rule: one. Claude: two. Jev, which is
@@ -110,7 +110,7 @@ Then the third card, deliberately.
 
 ### 4:00 — Close (10s)
 
-> Simon tells a store manager which three things to move on Monday, and it is the only engine
+> StoreVerse tells a store manager which three things to move on Monday, and it is the only engine
 > in that table that can tell you how much it will be worth without being out by a factor of
 > two.
 
@@ -131,7 +131,7 @@ exactly the direction selection bias predicts.
 
 **"Why is the AUC gap small?"**
 Most of the predictive signal in grocery is household habit, and all three engines have it.
-The gap between them is exactly the part placement explains, which is all Simon-1 claims. The
+The gap between them is exactly the part placement explains, which is all StoreVerse-1 claims. The
 promoted-rows columns isolate it: on the 360,000 decisions where nothing was promoted, the
 engines are identical by construction.
 
@@ -144,11 +144,11 @@ also lands on the naive 2.58x, same as the others.
 
 **"Why those 70 products?"**
 Staples do not respond to merchandising — the top products by volume show a lift of about 1.0.
-Fitting on them produces a null result. Simon trains on the mid-tail, where the chain actually
+Fitting on them produces a null result. StoreVerse trains on the mid-tail, where the chain actually
 varied placement. That is a finding, not a convenience.
 
 **"Revenue numbers look small."**
-They cover the promotable items Simon models in ten categories, not the store's whole basket,
+They cover the promotable items StoreVerse models in ten categories, not the store's whole basket,
 scaled to 12,000 weekly visits. Read the percentage.
 
 **"Can it do my store?"**

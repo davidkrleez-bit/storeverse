@@ -26,7 +26,7 @@
  },
  "engines": {
   "simon1": {
-   "label": "Simon-1",
+   "label": "StoreVerse-1",
    "note": "calibrated on the chain's own records",
    "log_loss": 0.03974775155269843,
    "brier": 0.007299914086336144,

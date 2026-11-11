@@ -1,12 +1,12 @@
 """
-Ask language models the question Simon-1 answers, and score them the same way.
+Ask language models the question StoreVerse-1 answers, and score them the same way.
 
-The claim Simon exists to support is "we can estimate the effect of a merchandising change".
+The claim StoreVerse exists to support is "we can estimate the effect of a merchandising change".
 A language model is the obvious thing a planner would reach for instead, so it should have
 to answer the same question on the same scale and be marked against the same measurement.
 
 Each model is asked, for each lever, by what multiple weekly unit sales change. That number
-goes straight into the same table as Simon-1's recovered lift and is scored against the
+goes straight into the same table as StoreVerse-1's recovered lift and is scored against the
 stratified estimate from the holdout receipts.
 
 Every model is asked several times. Run-to-run spread is reported, because a planner who
@@ -46,7 +46,7 @@ A multiple of 1.0 means no change. Give your single best point estimate for each
 OPENROUTER_MODELS = [
     # Jev is not a language model: TypeSafe build it as a "System One" decision model that
     # returns typed answers with probabilities. It is in here because it is the closest
-    # commercial thing to what Simon-1 does, not as another chatbot.
+    # commercial thing to what StoreVerse-1 does, not as another chatbot.
     ("jev", "typesafe/jev-router", "TypeSafe's decision model, used as-is", "decision model"),
     ("gpt", "openai/gpt-5.6-luna-pro", "a general-purpose LLM asked to estimate", "LLM"),
     ("gemini", "google/gemini-2.5-pro", "a general-purpose LLM asked to estimate", "LLM"),
@@ -153,7 +153,7 @@ def main():
             "way to run it from here without a key. Set the key and re-run this script to "
             "fill the column in; nothing else needs to change.")
 
-    # Score every model against the same stratified measurement Simon-1 is scored on.
+    # Score every model against the same stratified measurement StoreVerse-1 is scored on.
     measured = {k: V["effects"][k]["actual"] for k in LEVER_KEYS
                 if V["effects"].get(k, {}).get("actual")}
     for e in engines.values():
@@ -176,7 +176,7 @@ def main():
     meas_row = "  " + f"{'measured':<16}" + "".join(
         f"{measured[k]['lift']:>10.2f}" if k in measured else f"{'-':>10}" for k in LEVER_KEYS)
     print(meas_row)
-    print("  " + f"{'Simon-1':<16}" + "".join(
+    print("  " + f"{'StoreVerse-1':<16}" + "".join(
         f"{V['effects'][k]['simulated']['simon1']:>10.2f}" for k in LEVER_KEYS) +
         f"{V['lift_mae']['simon1']:>10.3f}" +
         f"{sum(V['effects'][k]['in_range']['simon1'] for k in LEVER_KEYS):>7}")

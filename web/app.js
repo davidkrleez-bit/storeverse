@@ -1,4 +1,4 @@
-// Simon - store simulation.
+// StoreVerse - store simulation.
 // Every number on screen comes from the response surface the model exported, so a figure
 // here traces back to a fitted purchase probability rather than a planning rule of thumb.
 import { mountScene, updateScene } from './scene.js';
@@ -85,7 +85,7 @@ VIEWS.space = () => {
     <div>
       <div class="card">
         <h2>Build from photos</h2>
-        <p class="hint">Upload shots of a store. Simon looks first, in plain words, then matches what
+        <p class="hint">Upload shots of a store. StoreVerse looks first, in plain words, then matches what
         it saw onto the ${BASE_ZONES.length} categories it was actually trained on &mdash; and says
         what it had to leave out.</p>
         <div class="drop" id="drop">
@@ -194,7 +194,7 @@ VIEWS.baseline = () => {
   <div class="head">
     <div class="eyebrow">Step 2</div>
     <h1>What the store sells today</h1>
-    <p class="sub">Simon scores the floor as it stands: every category at its current shelf
+    <p class="sub">StoreVerse scores the floor as it stands: every category at its current shelf
     position and its current flyer treatment, over ${n0(STORE.visits_per_week)} weekly visits.
     This is the number every scenario is measured against.</p>
   </div>
@@ -209,7 +209,7 @@ VIEWS.baseline = () => {
   </div>
   <div class="card mt">
     <h2>Category breakdown</h2>
-    <p class="hint">Units cover the promotable items Simon models in each category, not the category's total sales.</p>
+    <p class="hint">Units cover the promotable items StoreVerse models in each category, not the category's total sales.</p>
     <table>
       <thead><tr><th>Category</th><th>Position</th><th>Flyer</th>
         <th class="num">Units/wk</th><th class="num">Revenue</th><th style="width:150px"></th></tr></thead>
@@ -253,7 +253,7 @@ VIEWS.scenario = () => {
   <div class="head">
     <div class="eyebrow">Step 3</div>
     <h1>Run a scenario</h1>
-    <p class="sub">Move a category onto a display position or into the flyer. Simon rescores the
+    <p class="sub">Move a category onto a display position or into the flyer. StoreVerse rescores the
     whole floor against the same ${n0(STORE.visits_per_week)} visits, so only the plan changes.</p>
   </div>
   <div class="grid2">
@@ -321,7 +321,7 @@ VIEWS.optimise = () => {
   <div class="head">
     <div class="eyebrow">Step 4</div>
     <h1>Let the model search</h1>
-    <p class="sub">Simon builds a thousand complete plans, scores each one against the same
+    <p class="sub">StoreVerse builds a thousand complete plans, scores each one against the same
     shoppers, and keeps the best. Every plan respects the real constraint: a category can hold
     one display position and one flyer slot, and there are only five of each.</p>
   </div>
@@ -460,159 +460,357 @@ function drawHist() {
 }
 
 // --------------------------------------------------------------- model check
+// ------------------------------------------------------------------ charts
+//
+// Palette: blue is StoreVerse-1 wherever it appears, orange As-usual, green Average
+// lift. Validated against the white card surface for lightness, chroma, CVD separation
+// and contrast. Green and red carry pass/fail nowhere on their own: that pair fails CVD
+// separation outright, so every verdict also ships a glyph and a word.
+const VIZ = {
+  ours: '#2a78d6', nopromo: '#eb6834', avglift: '#199e70',
+  quiet: '#b8b4ac', band: '#e7e4de', ink: '#2b2e33', ink2: '#6b6f76',
+  grid: '#eeebe6', good: '#0ca30c', bad: '#d03b3b',
+};
+const sx = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const pct = v => (v * 100).toFixed(1) + '%';
+
+/** "Lower is better" / "Higher is better", said once so every chart is read correctly. */
+const dir = (lower, what = '') =>
+  `<span class="dir ${lower ? 'lo' : 'hi'}"><span class="ar">${lower ? '&darr;' : '&uarr;'}</span>${
+    lower ? 'Lower is better' : 'Higher is better'}${what ? ` &middot; ${sx(what)}` : ''}</span>`;
+
+/**
+ * Ranked bars of how wrong each engine's revenue forecast would be, with the planner's
+ * 10% tolerance drawn in. One hue for the engine that is the subject, grey for the rest:
+ * the story is "this one is inside the line", which is emphasis, not eight identities.
+ */
+function barsRevenue(rows, tol = 0.10) {
+  const W = 760, rowH = 34, padL = 168, padR = 86, top = 26;
+  const H = top + rows.length * rowH + 30;
+  const max = Math.max(tol * 1.35, ...rows.map(r => r.v)) * 1.06;
+  const x = v => padL + (v / max) * (W - padL - padR);
+  const tx = x(tol);
+
+  const bars = rows.map((r, i) => {
+    const y = top + i * rowH, h = 18, w = Math.max(3, x(r.v) - padL);
+    const ok = r.v <= tol;
+    return `<g class="bar-g">
+      <title>${sx(r.label)}: revenue forecast off by ${pct(r.v)}${ok ? ' (inside the 10% tolerance)' : ' (outside the 10% tolerance)'}</title>
+      <text x="${padL - 12}" y="${y + h / 2 + 4}" text-anchor="end" class="vz-lab${r.mark ? ' on' : ''}">${sx(r.label)}</text>
+      <rect x="${padL}" y="${y}" width="${w}" height="${h}" rx="4"
+            fill="${r.mark ? VIZ.ours : VIZ.quiet}"></rect>
+      <text x="${padL + w + 9}" y="${y + h / 2 + 4}" class="vz-val${r.mark ? ' on' : ''}">${pct(r.v)}</text>
+      <text x="${W - 4}" y="${y + h / 2 + 4}" text-anchor="end"
+            class="vz-flag ${ok ? 'ok' : 'no'}">${ok ? '&#10003; within' : '&#10007; over'}</text>
+    </g>`;
+  }).join('');
+
+  return `<svg viewBox="0 0 ${W} ${H}" class="vz" role="img"
+      aria-label="Revenue forecast error by engine, against a 10 percent tolerance">
+    <line x1="${padL}" y1="${top - 6}" x2="${padL}" y2="${H - 28}" stroke="${VIZ.grid}" stroke-width="1"/>
+    <line x1="${tx}" y1="${top - 10}" x2="${tx}" y2="${H - 26}" stroke="${VIZ.bad}"
+          stroke-width="2" stroke-dasharray="3 3"/>
+    <text x="${tx + 6}" y="${H - 12}" class="vz-ax" fill="${VIZ.bad}">10% tolerance</text>
+    <text x="${padL}" y="${H - 12}" class="vz-ax">0%</text>
+    <text x="${x(max)}" y="${H - 12}" text-anchor="end" class="vz-ax">${pct(max)}</text>
+    ${bars}
+  </svg>`;
+}
+
+/**
+ * One strip per merchandising lever: the measured lift with its interval behind, and
+ * every engine's estimate dropped on top. Lanes keep the dots from sitting on each
+ * other; the label is on ours and on whichever engine is furthest from the truth.
+ */
+function stripsLift(levers) {
+  const W = 760, padL = 120, padR = 54, sH = 74;
+  const lo = 0.85;
+  const hi = Math.min(4.2, Math.max(...levers.flatMap(L => [L.hi, ...L.dots.map(d => d.v)])) * 1.06);
+  const x = v => padL + ((Math.min(hi, Math.max(lo, v)) - lo) / (hi - lo)) * (W - padL - padR);
+  const H = levers.length * sH + 34;
+
+  const ticks = [1, 1.5, 2, 2.5, 3, 3.5, 4].filter(t => t >= lo && t <= hi);
+  const grid = ticks.map(t =>
+    `<line x1="${x(t)}" y1="8" x2="${x(t)}" y2="${H - 26}" stroke="${VIZ.grid}" stroke-width="1"/>
+     <text x="${x(t)}" y="${H - 10}" text-anchor="middle" class="vz-ax">${t}&times;</text>`).join('');
+
+  const strips = levers.map((L, i) => {
+    const y0 = 14 + i * sH, mid = y0 + 26;
+    const far = L.dots.reduce((a, b) => (Math.abs(b.v - L.lift) > Math.abs(a.v - L.lift) ? b : a), L.dots[0]);
+    const dots = L.dots.map((d, j) => {
+      const lane = mid + ((j % 3) - 1) * 13;
+      const mine = d.mark, show = mine || d === far;
+      return `<g class="dot-g">
+        <title>${sx(d.label)} says ${d.v.toFixed(2)}x &middot; measured ${L.lift.toFixed(2)}x [${L.lo.toFixed(2)}, ${L.hi.toFixed(2)}]</title>
+        <circle cx="${x(d.v)}" cy="${lane}" r="${mine ? 6.5 : 5}"
+                fill="${mine ? VIZ.ours : VIZ.quiet}" stroke="#fff" stroke-width="2"/>
+        ${show ? `<text x="${x(d.v)}" y="${lane - 11}" text-anchor="middle"
+          class="vz-dlab${mine ? ' on' : ''}">${sx(d.label)}</text>` : ''}
+      </g>`;
+    }).join('');
+    return `<g>
+      <text x="${padL - 12}" y="${mid - 4}" text-anchor="end" class="vz-lab">${sx(L.label)}</text>
+      <text x="${padL - 12}" y="${mid + 11}" text-anchor="end" class="vz-ax">${n0(L.cells)} strata</text>
+      <rect x="${x(L.lo)}" y="${y0 + 2}" width="${Math.max(2, x(L.hi) - x(L.lo))}" height="48"
+            fill="${VIZ.band}" rx="3"><title>measured 90% interval</title></rect>
+      <line x1="${x(L.lift)}" y1="${y0}" x2="${x(L.lift)}" y2="${y0 + 52}"
+            stroke="${VIZ.ink}" stroke-width="2"/>
+      ${dots}
+    </g>`;
+  }).join('');
+
+  return `<svg viewBox="0 0 ${W} ${H}" class="vz" role="img"
+      aria-label="Estimated lift per lever against the measured lift and its interval">
+    ${grid}${strips}
+  </svg>`;
+}
+
+/** Predicted against observed, ten bins. The diagonal is a model that means what it says. */
+function chartReliability(series) {
+  const W = 420, H = 330, p = 46;
+  const max = Math.max(...series.flatMap(s => s.pts.flatMap(q => [q.p, q.y]))) * 1.08;
+  const X = v => p + (v / max) * (W - p - 16);
+  const Y = v => H - p - (v / max) * (H - p - 18);
+  const t4 = [0, max / 3, (max * 2) / 3, max];
+
+  // The origin carries one zero, not two stacked on each other.
+  const axes = t4.map((t, i) => `
+    <line x1="${p}" y1="${Y(t)}" x2="${W - 16}" y2="${Y(t)}" stroke="${VIZ.grid}" stroke-width="1"/>
+    <text x="${p - 7}" y="${Y(t) + 3.5}" text-anchor="end" class="vz-ax">${(t * 100).toFixed(1)}%</text>
+    ${i ? `<text x="${X(t)}" y="${H - p + 16}" text-anchor="middle" class="vz-ax">${(t * 100).toFixed(1)}%</text>` : ''}`).join('');
+
+  const lines = series.map(s => {
+    const d = s.pts.map((q, i) => `${i ? 'L' : 'M'}${X(q.p).toFixed(1)} ${Y(q.y).toFixed(1)}`).join(' ');
+    const marks = s.pts.map(q => `<circle cx="${X(q.p)}" cy="${Y(q.y)}" r="4" fill="${s.c}"
+      stroke="#fff" stroke-width="1.5"><title>${sx(s.label)}: predicted ${pct(q.p)}, actually ${pct(q.y)}</title></circle>`).join('');
+    return `<path d="${d}" fill="none" stroke="${s.c}" stroke-width="2"
+      stroke-linejoin="round" stroke-linecap="round"/>${marks}`;
+  }).join('');
+
+  return `<svg viewBox="0 0 ${W} ${H}" class="vz" role="img"
+      aria-label="Reliability: predicted purchase rate against observed">
+    ${axes}
+    <line x1="${X(0)}" y1="${Y(0)}" x2="${X(max)}" y2="${Y(max)}" stroke="${VIZ.ink2}"
+          stroke-width="1.5" stroke-dasharray="4 4"/>
+    <text x="${X(max) - 6}" y="${Y(max) + 16}" text-anchor="end" class="vz-ax">perfect</text>
+    ${lines}
+    <text x="6" y="${(H - p) / 2}" class="vz-axt" transform="rotate(-90 6 ${(H - p) / 2})"
+          text-anchor="middle">what actually happened</text>
+    <text x="${(W + p) / 2}" y="${H - 6}" text-anchor="middle" class="vz-axt">what it predicted</text>
+  </svg>`;
+}
+
 VIEWS.model = () => {
   const V = VALID, E = V.engines;
   const order = ['simon1', 'no_promo', 'avg_lift'];
   const LK = ['secondary_display', 'front_endcap', 'flyer_interior', 'flyer_front'];
   const llm = (V.llm && V.llm.engines) || {};
   const llmKeys = Object.keys(llm);
-  const pick = (keys, get, lower = true) => {
-    const vals = keys.map(get).filter(v => Number.isFinite(v));
-    return vals.length ? (lower ? Math.min(...vals) : Math.max(...vals)) : null;
-  };
-  const bAuc = pick(order, k => E[k].auc, false);
-  const bLL = pick(order, k => E[k].log_loss);
-  const bAucP = pick(order, k => E[k].promoted.auc, false);
-  const bLLP = pick(order, k => E[k].promoted.log_loss);
-  const w = c => c ? ' class="win"' : '';
 
-  // Every engine that produced a lift estimate, Simon-1 and the language models alike.
-  const liftRows = [
-    { label: 'Simon-1', note: 'this model', mark: true,
-      get: k => V.effects[k].simulated.simon1,
-      inr: k => V.effects[k].in_range.simon1, mae: V.lift_mae.simon1 },
-    { label: 'As-usual', note: 'ignores promotion',
-      get: k => V.effects[k].simulated.no_promo,
-      inr: k => V.effects[k].in_range.no_promo, mae: V.lift_mae.no_promo },
+  // Every engine that put a number on a lever, ours and the language models alike.
+  const engines = [
+    { label: 'StoreVerse-1', note: 'this model', mark: true,
+      get: k => V.effects[k].simulated.simon1, inr: k => V.effects[k].in_range.simon1,
+      mae: V.lift_mae.simon1 },
+    { label: 'As-usual', note: 'ignores promotion entirely',
+      get: k => V.effects[k].simulated.no_promo, inr: k => V.effects[k].in_range.no_promo,
+      mae: V.lift_mae.no_promo },
     { label: 'Average lift', note: 'one blanket multiplier',
-      get: k => V.effects[k].simulated.avg_lift,
-      inr: k => V.effects[k].in_range.avg_lift, mae: V.lift_mae.avg_lift },
+      get: k => V.effects[k].simulated.avg_lift, inr: k => V.effects[k].in_range.avg_lift,
+      mae: V.lift_mae.avg_lift },
     ...llmKeys.map(n => ({
       label: llm[n].label, note: llm[n].note, llm: true, kind: llm[n].kind || 'LLM',
       get: k => llm[n].estimate[k], inr: k => llm[n].in_range[k], mae: llm[n].lift_mae,
-      spread: k => llm[n].spread[k], draws: llm[n].draws })),
+      spread: k => llm[n].spread[k] })),
   ];
-  const bestMae = pick(liftRows.map((_, i) => i), i => liftRows[i].mae);
+
+  /**
+   * What believing an engine would cost you.
+   *
+   * Revenue from a promoted category moves with its lift, so an engine that thinks a
+   * lever is worth 2.4x when the receipts say 1.34x overstates that category's takings
+   * by the same proportion. Averaged over the four levers, weighted by how much evidence
+   * each one rests on. Prices and footfall are held still, so this is the error the
+   * engine contributes and not a forecast of the business.
+   */
+  const revErr = get => {
+    let num = 0, den = 0;
+    for (const k of LK) {
+      const a = V.effects[k].actual, p = get(k);
+      if (!Number.isFinite(p) || !a) continue;
+      num += Math.abs(p / a.lift - 1) * a.cells;
+      den += a.cells;
+    }
+    return den ? num / den : null;
+  };
+  const revRows = engines.map(e => ({ label: e.label, mark: e.mark, v: revErr(e.get) }))
+    .filter(r => Number.isFinite(r.v)).sort((a, b) => a.v - b.v);
+  const mine = revRows.find(r => r.mark);
+  const nextBest = revRows.find(r => !r.mark);
+  const overTol = revRows.filter(r => r.v > 0.10).length;
+
+  const levers = LK.map(k => {
+    const a = V.effects[k].actual;
+    return { label: V.effects[k].label, lift: a.lift, lo: a.lo, hi: a.hi, cells: a.cells,
+      dots: engines.map(e => ({ label: e.label, v: e.get(k), mark: e.mark })).filter(d => Number.isFinite(d.v)) };
+  });
+
+  const rel = [
+    { label: 'StoreVerse-1', c: VIZ.ours, pts: E.simon1.promoted.reliability },
+    { label: 'As-usual', c: VIZ.nopromo, pts: E.no_promo.promoted.reliability },
+    { label: 'Average lift', c: VIZ.avglift, pts: E.avg_lift.promoted.reliability },
+  ];
+
+  const best = (keys, get, lower = true) => {
+    const vals = keys.map(get).filter(Number.isFinite);
+    return vals.length ? (lower ? Math.min(...vals) : Math.max(...vals)) : null;
+  };
+  const bAuc = best(order, k => E[k].promoted.auc, false);
+  const bEce = best(order, k => E[k].promoted.ece);
+  const bLL = best(order, k => E[k].promoted.log_loss);
+  const w = c => c ? ' class="win"' : '';
   const fe = V.effects.front_endcap.actual;
+  const inCI = e => LK.filter(k => e.inr(k)).length;
 
   view.innerHTML = `
   <div class="head">
     <div class="eyebrow">Model check</div>
-    <h1>Is the model actually better?</h1>
-    <p class="sub">Simon-1 never sees the last ${V.holdout.weeks[1] - V.holdout.weeks[0] + 1}
-    weeks. It is then scored on all ${n0(V.holdout.rows)} decisions in them, against the two
-    rules a planner would otherwise use and against language models asked the same question.</p>
+    <h1>Does the model tell the truth?</h1>
+    <p class="sub">StoreVerse-1 never sees the last ${V.holdout.weeks[1] - V.holdout.weeks[0] + 1}
+    weeks of the chain's records. It is then scored on all ${n0(V.holdout.rows)} decisions inside
+    them, against the two rules a planner would otherwise use and against language models asked
+    the same question.</p>
   </div>
-  <div class="grid3">
-    <div class="stat"><div class="l">Holdout decisions</div><div class="v">${n0(V.holdout.rows)}</div>
-      <div class="d">${n0(V.holdout.visits)} visits, ${V.holdout.stores} stores, weeks
-      ${V.holdout.weeks[0]}&ndash;${V.holdout.weeks[1]}</div></div>
-    <div class="stat"><div class="l">Actual purchases</div><div class="v">${n0(V.holdout.buys)}</div>
-      <div class="d">${n0(V.holdout.households)} households, ${V.holdout.products} products</div></div>
-    <div class="stat"><div class="l">Lift error, Simon-1</div>
-      <div class="v">${V.lift_mae.simon1.toFixed(3)}</div>
-      <div class="d up">next best rule is ${V.lift_mae.avg_lift.toFixed(3)}</div></div>
+
+  <div class="verdict">
+    <div class="vmain">
+      <div class="vnum">${pct(mine.v)}</div>
+      <div class="vcap"><b>StoreVerse-1 forecasts promoted revenue to within ${pct(mine.v)}.</b>
+      The next best engine, ${sx(nextBest.label)}, is off by ${pct(nextBest.v)} &mdash;
+      ${(nextBest.v / mine.v).toFixed(0)}&times; further from the receipts.
+      ${overTol} of the ${revRows.length} engines miss by more than 10%.</div>
+    </div>
   </div>
 
   <div class="card mt">
-    <h2>Scored on the holdout</h2>
-    <p class="hint">Lower is better except AUC. The right-hand pair covers only the
-    ${n0(V.holdout.promoted_rows)} decisions where something was actually being promoted, which
-    is where these engines can differ at all.</p>
-    <table>
-      <thead><tr><th>Engine</th><th>What it assumes</th>
-        <th class="num">AUC</th><th class="num">Log loss</th>
-        <th class="num">AUC, promoted</th><th class="num">Log loss, promoted</th></tr></thead>
-      <tbody>${order.map(o => `<tr>
-        <td><b>${esc(E[o].label)}</b></td>
-        <td class="note">${esc(E[o].note)}</td>
-        <td class="num"${w(E[o].auc === bAuc)}>${E[o].auc.toFixed(4)}</td>
-        <td class="num"${w(E[o].log_loss === bLL)}>${E[o].log_loss.toFixed(5)}</td>
-        <td class="num"${w(E[o].promoted.auc === bAucP)}>${E[o].promoted.auc.toFixed(4)}</td>
-        <td class="num"${w(E[o].promoted.log_loss === bLLP)}>${E[o].promoted.log_loss.toFixed(5)}</td>
-      </tr>`).join('')}</tbody>
-    </table>
+    <div class="chead"><h2>What believing each engine would cost you</h2>${dir(true, 'revenue forecast error')}</div>
+    <p class="hint">Revenue from a promoted category moves with its lift, so an engine that
+    thinks a front endcap is worth ${(llmKeys.length ? llm[llmKeys[0]].estimate.front_endcap : 2.4).toFixed(1)}&times;
+    when the receipts say ${fe.lift.toFixed(2)}&times; overstates that category's takings by the
+    same proportion. Averaged over the four levers, weighted by the evidence behind each.</p>
+    ${barsRevenue(revRows)}
+    <p class="note mt8">Ten per cent is the line because it is roughly the margin a planner can
+    absorb: past it, the plan you chose and the plan you should have chosen are different plans.
+    Prices and footfall are held still here, so this is the error the engine contributes, not a
+    forecast of the business.</p>
   </div>
 
   <div class="card mt">
-    <h2>Can it predict the effect of a change?</h2>
-    <p class="hint">The question the product turns on. Measured is the lift read off holdout
-    receipts with a 90% bootstrap interval. A tick means the estimate falls inside it.</p>
+    <div class="chead"><h2>Can it predict the effect of a change?</h2>${dir(true, 'distance from measured')}</div>
+    <p class="hint">The question the product turns on. The dark line is the lift read off holdout
+    receipts, the grey band its 90% bootstrap interval, and each dot is one engine's estimate.
+    Hover any dot for its figure. Shared scale, so the panels compare.</p>
+    ${stripsLift(levers)}
+    <div class="legend">
+      <span><i style="background:${VIZ.ours}"></i>StoreVerse-1</span>
+      <span><i style="background:${VIZ.quiet}"></i>Other engines</span>
+      <span><i class="bandi"></i>Measured 90% interval</span>
+      <span><i class="tick"></i>Measured lift</span>
+    </div>
+  </div>
+
+  <div class="grid2 mt">
+    <div class="card">
+      <div class="chead"><h2>Do its probabilities mean what they say?</h2></div>
+      <p class="hint">Each engine's predictions on promoted decisions, sorted into ten bins:
+      what it promised against what happened. On the dashed line, a 2% prediction buys 2% of
+      the time. ${dir(false, 'closer to the line')}</p>
+      ${chartReliability(rel)}
+      <div class="legend">${rel.map(s =>
+        `<span><i style="background:${s.c}"></i>${sx(s.label)}</span>`).join('')}</div>
+    </div>
+    <div class="card">
+      <div class="chead"><h2>Scored on the holdout</h2></div>
+      <p class="hint">The ${n0(V.holdout.promoted_rows)} decisions where something was actually
+      being promoted, which is where these engines can differ at all.</p>
+      <table>
+        <thead><tr><th>Engine</th>
+          <th class="num">AUC<br><span class="hdir">&uarr; higher</span></th>
+          <th class="num">Calibration<br><span class="hdir">&darr; lower</span></th>
+          <th class="num">Log loss<br><span class="hdir">&darr; lower</span></th></tr></thead>
+        <tbody>${order.map(o => `<tr${o === 'simon1' ? ' class="win"' : ''}>
+          <td><b>${sx(E[o].label)}</b><br><span class="note">${sx(E[o].note)}</span></td>
+          <td class="num"${w(E[o].promoted.auc === bAuc)}>${E[o].promoted.auc.toFixed(3)}</td>
+          <td class="num"${w(E[o].promoted.ece === bEce)}>${E[o].promoted.ece.toFixed(4)}</td>
+          <td class="num"${w(E[o].promoted.log_loss === bLL)}>${E[o].promoted.log_loss.toFixed(4)}</td>
+        </tr>`).join('')}</tbody>
+      </table>
+      <p class="note mt8">AUC is whether it ranks the right decisions first. Calibration is
+      whether the number on the tin is the number you get. Log loss punishes both at once.
+      StoreVerse-1 leads all three on the decisions that matter.</p>
+    </div>
+  </div>
+
+  <div class="card mt">
+    <div class="chead"><h2>Every estimate, in full</h2>${dir(true, 'mean error')}</div>
+    <p class="hint">A tick means the estimate falls inside the measured interval. The &plusmn;
+    figure is half the spread across ${V.llm ? V.llm.repeats : 5} runs, which is the part a
+    planner asking a chatbot once never gets to see.</p>
     <table>
       <thead><tr><th>Engine</th>
-        ${LK.map(k => `<th class="num">${esc(V.effects[k].label)}</th>`).join('')}
-        <th class="num">Mean error</th><th class="num">In CI</th></tr></thead>
+        ${LK.map(k => `<th class="num">${sx(V.effects[k].label)}</th>`).join('')}
+        <th class="num">Mean error</th><th class="num">In interval</th></tr></thead>
       <tbody>
-        <tr><td><b>Measured</b><br><span class="note">stratified, from receipts</span></td>
+        <tr class="measured"><td><b>Measured</b><br><span class="note">stratified, from receipts</span></td>
           ${LK.map(k => { const a = V.effects[k].actual;
-            return `<td class="num">${a ? a.lift.toFixed(2) : '&mdash;'}<br>
-              <span class="note">${a ? '[' + a.lo.toFixed(2) + ', ' + a.hi.toFixed(2) + ']' : ''}</span></td>`;
+            return `<td class="num"><b>${a.lift.toFixed(2)}</b><br><span class="note">[${a.lo.toFixed(2)}, ${a.hi.toFixed(2)}]</span></td>`;
           }).join('')}
           <td class="num">&mdash;</td><td class="num">&mdash;</td></tr>
-        ${liftRows.map(r => `<tr${r.mark ? ' class="win"' : ''}>
-          <td><b>${esc(r.label)}</b>${r.llm ? ` <span class="tag">${esc(r.kind)}</span>` : ''}<br>
-            <span class="note">${esc(r.note)}</span></td>
-          ${LK.map(k => `<td class="num">${r.get(k).toFixed(2)}${r.inr(k) ? ' <span class="ok">&#10003;</span>' : ''}${
-            r.spread ? `<br><span class="note">&plusmn;${(r.spread(k) / 2).toFixed(2)}</span>` : ''}</td>`).join('')}
-          <td class="num"${w(r.mae === bestMae)}>${r.mae.toFixed(3)}</td>
-          <td class="num">${LK.filter(k => r.inr(k)).length} / ${LK.length}</td></tr>`).join('')}
+        ${engines.map(e => `<tr${e.mark ? ' class="win"' : ''}>
+          <td><b>${sx(e.label)}</b>${e.llm ? ` <span class="tag">${sx(e.kind)}</span>` : ''}<br>
+            <span class="note">${sx(e.note)}</span></td>
+          ${LK.map(k => `<td class="num">${e.get(k).toFixed(2)}${
+            e.inr(k) ? ' <span class="ok" title="inside the measured interval">&#10003;</span>' : ''}${
+            e.spread ? `<br><span class="note">&plusmn;${(e.spread(k) / 2).toFixed(2)}</span>` : ''}</td>`).join('')}
+          <td class="num"${w(e.mae === V.lift_mae.simon1)}>${e.mae.toFixed(3)}</td>
+          <td class="num">${inCI(e)} / ${LK.length}</td></tr>`).join('')}
       </tbody>
     </table>
   </div>
 
   <div class="card mt">
-    <h2>Why every other engine is wrong in the same direction</h2>
+    <div class="chead"><h2>Why every other engine is wrong in the same direction</h2></div>
     <p class="note">Stores promote what was already selling. Take every product-week where some
-    store ran an endcap, add up sales on both sides and divide, and the promoted side carries
-    the weeks that were going to be good anyway. That sum says the endcap is worth
-    <b>${fe.naive.toFixed(2)}x</b>. Stratifying it, so a product-week is only ever compared with
-    itself across stores, says <b>${fe.lift.toFixed(2)}x</b>. The gap is the confound, and it is
-    the whole disagreement.</p>
-    <table><thead><tr><th>Change</th><th>Measured between</th><th class="num">Naive, pooled</th>
-      <th class="num">Stratified</th><th class="num">Simon-1</th><th class="num">Strata</th></tr></thead>
+    store ran an endcap, add up sales on both sides and divide, and the promoted side carries the
+    weeks that were going to be good anyway. That sum says the endcap is worth
+    <b>${fe.naive.toFixed(2)}&times;</b>. Stratifying it, so a product-week is only ever compared
+    with itself across stores, says <b>${fe.lift.toFixed(2)}&times;</b>. The gap is the confound,
+    and it is the whole disagreement.</p>
+    <table><thead><tr><th>Change</th><th>Measured between</th>
+      <th class="num">Naive, pooled</th><th class="num">Stratified</th>
+      <th class="num">StoreVerse-1</th><th class="num">Strata</th></tr></thead>
       <tbody>${LK.map(k => { const a = V.effects[k].actual; return `<tr>
-        <td><b>${esc(V.effects[k].label)}</b></td>
-        <td class="note">${esc(a.basis)}</td>
+        <td><b>${sx(V.effects[k].label)}</b></td>
+        <td class="note">${sx(a.basis)}</td>
         <td class="num">${a.naive.toFixed(2)}</td>
         <td class="num"><b>${a.lift.toFixed(2)}</b></td>
         <td class="num win">${V.effects[k].simulated.simon1.toFixed(2)}</td>
         <td class="num">${n0(a.cells)}</td></tr>`; }).join('')}</tbody></table>
-    <p class="note mt8">The average-lift rule measures <b>${V.avg_lift.toFixed(2)}x</b>, which is
-    the naive figure almost exactly.${llmKeys.length ? ` The language models land there too: asked
-    what a front endcap is worth they answer around
-    <b>${(llmKeys.reduce((a, n) => a + llm[n].estimate.front_endcap, 0) / llmKeys.length).toFixed(2)}x</b>,
+    <p class="note mt8">The average-lift rule measures <b>${V.avg_lift.toFixed(2)}&times;</b>,
+    which is the naive figure almost exactly.${llmKeys.length ? ` The language models land there
+    too: asked what a front endcap is worth they answer around
+    <b>${(llmKeys.reduce((a, n) => a + llm[n].estimate.front_endcap, 0) / llmKeys.length).toFixed(2)}&times;</b>,
     because that is the number the trade press and the textbooks quote.` : ''} Everything that has
-    not done the stratification lands on the folk number. Simon-1 is built on the contrast and
-    lands on the measurement.</p>
+    not done the stratification lands on the folk number. StoreVerse-1 is built on the contrast
+    and lands on the measurement.</p>
   </div>
 
   ${llmKeys.length ? `<div class="card mt">
-    <h2>What the language models were asked</h2>
-    <p class="hint">Each model answered ${V.llm.repeats} times. The &plusmn; figure above is half
-    the spread across those runs, which is the part a planner asking once never gets to see.</p>
-    <table><thead><tr><th>Model</th><th class="num">Runs</th>
-      <th class="num">Widest spread</th><th class="num">Mean error</th></tr></thead>
-      <tbody>${llmKeys.map(n => { const e = llm[n];
-        const sp = Math.max(...LK.map(k => e.spread[k]));
-        return `<tr><td><b>${esc(e.label)}</b><br><span class="note">${esc(e.note)}</span></td>
-          <td class="num">${e.draws}</td><td class="num">&plusmn;${(sp / 2).toFixed(2)}</td>
-          <td class="num">${e.lift_mae.toFixed(3)}</td></tr>`; }).join('')}</tbody></table>
-  </div>` : ''}
-
-  ${(V.llm && V.llm.notes && V.llm.notes.length) ? `<div class="card mt">
-    <h2>Not tested</h2>
-    ${V.llm.notes.map(n => `<p class="note">${esc(n)}</p>`).join('')}
-  </div>` : ''}
-
-  <div class="card mt">
-    <h2>What the model learned</h2>
-    <table><tbody>${V.levers.map((l, i) => `<tr><td>${esc(l)}</td>
-      <td class="num">${V.beta[i] >= 0 ? '+' : ''}${V.beta[i].toFixed(3)} log</td>
-      <td class="num">${Math.exp(V.beta[i]).toFixed(2)}x</td></tr>`).join('')}</tbody></table>
-    <p class="note mt8">Fitted on a log link with one free level per product-week, so these are
-    the movement a position causes between stores that merchandised the same product in the same
-    week differently, not the popularity of whatever already sits there.</p>
-  </div>`;
+    <div class="chead"><h2>What the language models were asked</h2></div>
+    <p class="hint">Each model answered ${V.llm.repeats} times, at the same temperature, with no
+    access to the chain's records &mdash; the position a planner is in when they ask one.</p>
+    <pre class="prompt">${sx(V.llm.prompt)}</pre>
+  </div>` : ''}`;
 };
 
 // --------------------------------------------------------------- photos
@@ -813,7 +1011,7 @@ function visionHTML(v) {
   const miss = (v.observations || []).filter(o => !o.match);
   const bad = (v.matched || []).filter(o => (o.confidence ?? 1) < 0.5).length;
   return `
-    <details class="reading-wrap"><summary>What Simon saw</summary>
+    <details class="reading-wrap"><summary>What StoreVerse saw</summary>
       <div class="reading">${esc(v.reading || '')}</div></details>
     <div class="vrow mt8">
       <b>${esc(v.archetype.title)}</b> ${conf(v.store_type_confidence)}

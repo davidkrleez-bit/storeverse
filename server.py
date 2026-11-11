@@ -1,5 +1,5 @@
 """
-Simon's demo server.
+StoreVerse's demo server.
 
 Serves web/ and turns photographs of a real store into the same store spec the
 simulator already understands. Vision runs through the local `claude` CLI, so no
@@ -261,6 +261,6 @@ if __name__ == "__main__":
     for f in ("data/store.json", "data/validation.json", "data/surface.json"):
         if not (WEB / f).exists():
             sys.exit(f"missing {WEB/f}\nRun:  python model/pipeline.py && python model/make_store.py")
-    print(f"Simon is serving {WEB}")
+    print(f"StoreVerse is serving {WEB}")
     print(f"  http://localhost:{PORT}\n")
     ThreadingHTTPServer(("127.0.0.1", PORT), Handler).serve_forever()

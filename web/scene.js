@@ -749,7 +749,6 @@ function loop(now) {
   const dt = prevT && now ? Math.min(0.05, (now - prevT) / 1000) : 0.016;
   if (now) prevT = now;
   stepCrowd(dt);
-  if (!drag) th += 0.0009;
   camera.position.set(
     target.x + camDist * Math.sin(ph) * Math.sin(th),
     target.y + camDist * Math.cos(ph),

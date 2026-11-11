@@ -1,8 +1,8 @@
-# Simon
+# StoreVerse
 
 Decide where things go in a store before you move them.
 
-Simon learns how in-store placement and flyer position change what people buy, from a year
+StoreVerse learns how in-store placement and flyer position change what people buy, from a year
 of real grocery receipts across a chain, then scores any floor plan you give it. Ask "what
 if bacon took the entrance endcap", and the answer comes from a measured causal effect
 rather than a rule of thumb.
@@ -19,15 +19,15 @@ python server.py                # then open localhost:8000
 
 ## The headline
 
-On a holdout of **559,090 decisions** the chain never showed the model, Simon-1 estimates the
+On a holdout of **559,090 decisions** the chain never showed the model, StoreVerse-1 estimates the
 effect of a merchandising change with a mean absolute error of **0.032**. The next best engine
-of any kind is **4.7x worse**, and Simon-1 is the only one whose estimate lands inside the
+of any kind is **4.7x worse**, and StoreVerse-1 is the only one whose estimate lands inside the
 measured interval on all four levers.
 
 | Engine | Secondary display | Front endcap | Flyer interior | Flyer front page | Mean error | In CI |
 | --- | --- | --- | --- | --- | --- | --- |
 | **Measured** (stratified) | 1.32 [1.23, 1.43] | 1.34 [1.23, 1.48] | 1.60 [1.33, 1.90] | 1.72 [1.32, 2.22] | | |
-| **Simon-1** | **1.34** ✓ | **1.31** ✓ | **1.53** ✓ | **1.70** ✓ | **0.032** | **4 / 4** |
+| **StoreVerse-1** | **1.34** ✓ | **1.31** ✓ | **1.53** ✓ | **1.70** ✓ | **0.032** | **4 / 4** |
 | GPT-5.6 Luna Pro | 1.35 ✓ | 1.64 | 1.39 ✓ | 1.79 ✓ | 0.151 | 3 / 4 |
 | Claude | 1.58 | 2.40 | 1.36 ✓ | 1.82 ✓ | 0.413 | 2 / 4 |
 | Jev (TypeSafe decision model) | 1.49 | 2.58 | 1.20 | 1.60 ✓ | 0.481 | 1 / 4 |
@@ -37,7 +37,7 @@ measured interval on all four levers.
 | Average lift | 2.07 | 2.07 | 2.07 | 2.07 ✓ | 0.574 | 1 / 4 |
 
 Two things stand out. **Jev, a decision model purpose-built for exactly this kind of typed
-estimate, does worse than a general-purpose LLM** and 15x worse than Simon-1 — and it gave the
+estimate, does worse than a general-purpose LLM** and 15x worse than StoreVerse-1 — and it gave the
 widest spread of any model on the endcap question, ±0.40 across five runs. And **Gemini is off
 by a factor of nearly three** on the front endcap while sounding exactly as confident as
 everyone else.
@@ -46,7 +46,7 @@ And on ordinary predictive accuracy over the same holdout:
 
 | Engine | AUC | Log loss | AUC, promoted rows | Log loss, promoted |
 | --- | --- | --- | --- | --- |
-| **Simon-1** | **0.7674** | **0.03975** | **0.7397** | **0.05607** |
+| **StoreVerse-1** | **0.7674** | **0.03975** | **0.7397** | **0.05607** |
 | As-usual | 0.7486 | 0.04065 | 0.7326 | 0.05860 |
 | Average lift | 0.7674 | 0.04039 | 0.7326 | 0.05833 |
 
@@ -68,7 +68,7 @@ across stores that merchandised it differently, and the answer is **1.34x**.
 Now look at what each engine says. The average-lift rule measures 2.07x. Claude, asked what a
 front endcap is worth, says 2.34x. Both land on the naive figure, because it is the figure the
 trade press and the textbooks quote and the one a pooled analysis reproduces. **Every engine
-that has not done the stratification lands on the folk number.** Simon-1 is built on the
+that has not done the stratification lands on the folk number.** StoreVerse-1 is built on the
 contrast and lands on the measurement.
 
 Getting this wrong is not academic. A planner who believes an endcap doubles sales will spend
@@ -78,7 +78,7 @@ prime space on the wrong categories and then be unable to explain why the quarte
 
 ## The model
 
-**Simon-1** predicts whether a given shopper picks up a given product on a given visit, and
+**StoreVerse-1** predicts whether a given shopper picks up a given product on a given visit, and
 what changes when you move that product.
 
 A decision row is one product a shopper could have picked up on one real visit. The placement
@@ -129,7 +129,7 @@ Those codes collapse into the states a merchandiser picks between:
 
 **Product selection matters more than any hyperparameter.** High-volume staples show no
 promotion response: the top products by volume have a within-product lift of about 1.0,
-because they sell the same however you merchandise them. Simon-1 trains on the 70 mid-tail
+because they sell the same however you merchandise them. StoreVerse-1 trains on the 70 mid-tail
 products that the chain genuinely moved around, where some store ran an endcap in a week when
 another did not. Selecting on raw volume instead produces a null result.
 
@@ -182,7 +182,7 @@ is served; the pipeline, the vision server and the model code stay here.
 ## The app
 
 **1 · The space** A 2D plan and a 3D model of the floor, built from the same spec the
-simulator scores. Drop in photos of a real store and Simon rebuilds the floor from them.
+simulator scores. Drop in photos of a real store and StoreVerse rebuilds the floor from them.
 Vision runs through the local `claude` CLI; if it is unavailable the demo floor stays
 loaded and everything else still works.
 
@@ -205,9 +205,9 @@ picture. What the photo does set is cosmetic: the room's dimensions, its colours
 where each fixture sits. None of it reaches a number.
 
 **2 · Today** The store as it stands, scored category by category over 12,000 weekly visits.
-Volumes cover the promotable items Simon models in each category, not total category sales.
+Volumes cover the promotable items StoreVerse models in each category, not total category sales.
 
-**3 · Scenarios** Move a category onto a display position or into the flyer. Simon rescores
+**3 · Scenarios** Move a category onto a display position or into the flyer. StoreVerse rescores
 the floor against the same visits, so only the plan changes.
 
 **4 · Find the best** 1,000 complete plans, each respecting the real constraint of five

@@ -104,6 +104,50 @@ code{font:12.5px ui-monospace,SFMono-Regular,Menlo,monospace;background:#f2efea;
 
 .ok{color:var(--accent);font-weight:700}
 
+/* model check: charts */
+.chead{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.dir{font-size:11px;font-weight:650;letter-spacing:.03em;color:var(--ink2);
+ background:#f3f1ec;border:1px solid var(--line);border-radius:999px;padding:3px 9px;white-space:nowrap}
+.dir .ar{font-weight:800;margin-right:4px}
+.dir.hi .ar{color:var(--up)} .dir.lo .ar{color:#2a78d6}
+.hdir{display:block;font-size:10px;font-weight:650;letter-spacing:.02em;color:var(--ink2);
+ text-transform:none;margin-top:2px}
+.vz{display:block;width:100%;height:auto;margin:6px 0 2px;overflow:visible}
+.vz-lab{font:600 12.5px ui-sans-serif,system-ui,sans-serif;fill:var(--ink2)}
+.vz-lab.on{fill:var(--ink);font-weight:700}
+.vz-val{font:700 12.5px ui-sans-serif,system-ui,sans-serif;fill:var(--ink2);
+ font-variant-numeric:tabular-nums}
+/* A short bar's figure can land on the tolerance rule; the halo keeps both readable. */
+.vz-val,.vz-dlab,.vz-ax{paint-order:stroke fill;stroke:#fff;stroke-width:3px;stroke-linejoin:round}
+.vz-axt{font:600 10.5px ui-sans-serif,system-ui,sans-serif;fill:#8d8a84;
+ letter-spacing:.03em}
+.vz-val.on{fill:#2a78d6}
+.vz-dlab{font:650 10.5px ui-sans-serif,system-ui,sans-serif;fill:var(--ink2)}
+.vz-dlab.on{fill:#2a78d6;font-weight:750}
+.vz-ax{font:500 10.5px ui-sans-serif,system-ui,sans-serif;fill:#8d8a84}
+.vz-flag{font:650 11px ui-sans-serif,system-ui,sans-serif}
+.vz-flag.ok{fill:#0ca30c} .vz-flag.no{fill:#d03b3b}
+.bar-g:hover rect,.dot-g:hover circle{filter:brightness(.92)}
+.dot-g{cursor:default}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--ink2);
+ margin-top:8px;padding-top:9px;border-top:1px solid #f1efeb}
+.legend span{display:flex;align-items:center;gap:6px}
+.legend i{width:11px;height:11px;border-radius:3px;display:block}
+.legend i.bandi{background:#e7e4de}
+.legend i.tick{width:3px;height:13px;border-radius:1px;background:#2b2e33}
+/* verdict */
+.verdict{background:var(--panel);border:1px solid var(--line);border-left:4px solid #2a78d6;
+ border-radius:var(--r);box-shadow:var(--shadow);padding:18px 20px;margin-top:18px}
+.vmain{display:flex;align-items:center;gap:20px;flex-wrap:wrap}
+.vnum{font-size:46px;font-weight:680;letter-spacing:-.035em;color:#2a78d6;
+ font-variant-numeric:tabular-nums;line-height:1}
+.vcap{font-size:13.5px;line-height:1.55;color:var(--ink2);max-width:62ch}
+.vcap b{color:var(--ink)}
+tr.measured td{background:#faf8f5}
+.prompt{font:11.5px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;background:#faf8f5;
+ border:1px solid var(--line);border-radius:10px;padding:12px 13px;white-space:pre-wrap;
+ max-height:260px;overflow:auto;color:var(--ink2);margin:0}
+
 /* photo read */
 .reading-wrap{margin-top:10px}
 .reading-wrap summary{font-size:12px;letter-spacing:.06em;text-transform:uppercase;

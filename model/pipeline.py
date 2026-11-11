@@ -1,5 +1,5 @@
 """
-Simon-1 training + validation pipeline.
+StoreVerse-1 training + validation pipeline.
 
 A decision row is one product a shopper could have picked up on one real visit. The
 placement attached to it is the placement that shopper actually walked past, because the
@@ -276,7 +276,7 @@ def fit_uplift(rows, y, p_base, prior=None, shrink=0.0):
 
 
 def fit(train):
-    """Simon-1 = baseline demand model + calibrated promotion-response layer."""
+    """StoreVerse-1 = baseline demand model + calibrated promotion-response layer."""
     cut = TRAIN_END - 4
     fit_rows, cal_rows = train[train.week <= cut], train[train.week > cut]
 
@@ -433,7 +433,7 @@ def main():
     log(f"     test  {len(test):,} rows / {int(test.y.sum()):,} buys  "
         f"({promoted.sum():,} promoted, {int(test.y.to_numpy()[promoted].sum()):,} buys)")
 
-    log("3/6  fitting Simon-1")
+    log("3/6  fitting StoreVerse-1")
     model = fit(train)
     log("     lever log-odds: " + "  ".join(f"{n} {b:+.3f}" for n, b in zip(LEVERS, model["beta"])))
 
@@ -449,7 +449,7 @@ def main():
 
     log("4/6  scoring on the holdout")
     preds = {"simon1": p_cal, "no_promo": p_none, "avg_lift": p_avg}
-    labels = {"simon1": ("Simon-1", "calibrated on the chain's own records"),
+    labels = {"simon1": ("StoreVerse-1", "calibrated on the chain's own records"),
               "no_promo": ("As-usual", "ignores promotion entirely"),
               "avg_lift": ("Average lift", "one blanket multiplier for every promotion")}
     engines = {}
