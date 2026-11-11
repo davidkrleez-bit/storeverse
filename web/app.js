@@ -449,82 +449,155 @@ function drawHist() {
 VIEWS.model = () => {
   const V = VALID, E = V.engines;
   const order = ['simon1', 'no_promo', 'avg_lift'];
-  const bestOf = k => Math.min(...order.map(o => k === 'auc' ? -E[o].auc : E[o][k]));
-  const mark = (o, k) => (k === 'auc' ? -E[o].auc : E[o][k]) === bestOf(k) ? ' class="win"' : '';
+  const LK = ['secondary_display', 'front_endcap', 'flyer_interior', 'flyer_front'];
+  const llm = (V.llm && V.llm.engines) || {};
+  const llmKeys = Object.keys(llm);
+  const pick = (keys, get, lower = true) => {
+    const vals = keys.map(get).filter(v => Number.isFinite(v));
+    return vals.length ? (lower ? Math.min(...vals) : Math.max(...vals)) : null;
+  };
+  const bAuc = pick(order, k => E[k].auc, false);
+  const bLL = pick(order, k => E[k].log_loss);
+  const bAucP = pick(order, k => E[k].promoted.auc, false);
+  const bLLP = pick(order, k => E[k].promoted.log_loss);
+  const w = c => c ? ' class="win"' : '';
+
+  // Every engine that produced a lift estimate, Simon-1 and the language models alike.
+  const liftRows = [
+    { label: 'Simon-1', note: 'this model', mark: true,
+      get: k => V.effects[k].simulated.simon1,
+      inr: k => V.effects[k].in_range.simon1, mae: V.lift_mae.simon1 },
+    { label: 'As-usual', note: 'ignores promotion',
+      get: k => V.effects[k].simulated.no_promo,
+      inr: k => V.effects[k].in_range.no_promo, mae: V.lift_mae.no_promo },
+    { label: 'Average lift', note: 'one blanket multiplier',
+      get: k => V.effects[k].simulated.avg_lift,
+      inr: k => V.effects[k].in_range.avg_lift, mae: V.lift_mae.avg_lift },
+    ...llmKeys.map(n => ({
+      label: llm[n].label, note: llm[n].note, llm: true,
+      get: k => llm[n].estimate[k], inr: k => llm[n].in_range[k], mae: llm[n].lift_mae,
+      spread: k => llm[n].spread[k], draws: llm[n].draws })),
+  ];
+  const bestMae = pick(liftRows.map((_, i) => i), i => liftRows[i].mae);
+  const fe = V.effects.front_endcap.actual;
+
   view.innerHTML = `
   <div class="head">
     <div class="eyebrow">Model check</div>
     <h1>Is the model actually better?</h1>
-    <p class="sub">Simon-1 is held out of the last ${V.holdout.weeks[1] - V.holdout.weeks[0] + 1} weeks
-    entirely, then scored on every one of ${n0(V.holdout.rows)} household-product-week decisions
-    against two baselines a planner would otherwise use.</p>
+    <p class="sub">Simon-1 never sees the last ${V.holdout.weeks[1] - V.holdout.weeks[0] + 1}
+    weeks. It is then scored on all ${n0(V.holdout.rows)} decisions in them, against the two
+    rules a planner would otherwise use and against language models asked the same question.</p>
   </div>
   <div class="grid3">
     <div class="stat"><div class="l">Holdout decisions</div><div class="v">${n0(V.holdout.rows)}</div>
-      <div class="d">weeks ${V.holdout.weeks[0]}&ndash;${V.holdout.weeks[1]}, never seen in training</div></div>
+      <div class="d">${n0(V.holdout.visits)} visits, ${V.holdout.stores} stores, weeks
+      ${V.holdout.weeks[0]}&ndash;${V.holdout.weeks[1]}</div></div>
     <div class="stat"><div class="l">Actual purchases</div><div class="v">${n0(V.holdout.buys)}</div>
-      <div class="d">${V.holdout.households} households, ${V.holdout.products} products</div></div>
-    <div class="stat"><div class="l">Simon-1 AUC</div><div class="v">${E.simon1.auc.toFixed(4)}</div>
-      <div class="d up">best of the three engines</div></div>
+      <div class="d">${n0(V.holdout.households)} households, ${V.holdout.products} products</div></div>
+    <div class="stat"><div class="l">Lift error, Simon-1</div>
+      <div class="v">${V.lift_mae.simon1.toFixed(3)}</div>
+      <div class="d up">next best rule is ${V.lift_mae.avg_lift.toFixed(3)}</div></div>
   </div>
+
   <div class="card mt">
     <h2>Scored on the holdout</h2>
-    <p class="hint">Lower is better except AUC. The winning cell in each column is shaded.</p>
+    <p class="hint">Lower is better except AUC. The right-hand pair covers only the
+    ${n0(V.holdout.promoted_rows)} decisions where something was actually being promoted, which
+    is where these engines can differ at all.</p>
     <table>
-      <thead><tr><th>Engine</th><th>What it assumes</th><th class="num">AUC</th>
-        <th class="num">Log loss</th><th class="num">Brier</th><th class="num">Calibration error</th></tr></thead>
+      <thead><tr><th>Engine</th><th>What it assumes</th>
+        <th class="num">AUC</th><th class="num">Log loss</th>
+        <th class="num">AUC, promoted</th><th class="num">Log loss, promoted</th></tr></thead>
       <tbody>${order.map(o => `<tr>
         <td><b>${esc(E[o].label)}</b></td>
         <td class="note">${esc(E[o].note)}</td>
-        <td class="num"${mark(o, 'auc')}>${E[o].auc.toFixed(4)}</td>
-        <td class="num"${mark(o, 'log_loss')}>${E[o].log_loss.toFixed(5)}</td>
-        <td class="num"${mark(o, 'brier')}>${E[o].brier.toFixed(7)}</td>
-        <td class="num"${mark(o, 'ece')}>${E[o].ece.toFixed(6)}</td>
+        <td class="num"${w(E[o].auc === bAuc)}>${E[o].auc.toFixed(4)}</td>
+        <td class="num"${w(E[o].log_loss === bLL)}>${E[o].log_loss.toFixed(5)}</td>
+        <td class="num"${w(E[o].promoted.auc === bAucP)}>${E[o].promoted.auc.toFixed(4)}</td>
+        <td class="num"${w(E[o].promoted.log_loss === bLLP)}>${E[o].promoted.log_loss.toFixed(5)}</td>
       </tr>`).join('')}</tbody>
     </table>
   </div>
+
   <div class="card mt">
     <h2>Can it predict the effect of a change?</h2>
-    <p class="hint">The measured column is the lift read straight off receipts: each product compared
-    against itself in weeks it did and did not hold that position, with a 90% bootstrap interval.</p>
+    <p class="hint">The question the product turns on. Measured is the lift read off holdout
+    receipts with a 90% bootstrap interval. A tick means the estimate falls inside it.</p>
     <table>
-      <thead><tr><th>Change</th><th class="num">Measured</th><th class="num">Simon-1</th>
-        <th class="num">As-usual</th><th class="num">Average lift</th><th>Products</th></tr></thead>
-      <tbody>${Object.values(V.effects).map(e => {
-        const a = e.actual;
-        // Shade whichever engine lands closest to the measured lift; mark the ones
-        // whose interval still contains the measurement.
-        const errs = e.abs_error || {};
-        const bestK = a ? Object.keys(errs).sort((x, y) => errs[x] - errs[y])[0] : null;
-        const cell = k => {
-          const v = e.simulated[k];
-          return `<td class="num${k === bestK ? ' win' : ''}">${v.toFixed(2)}` +
-                 `${a && e.in_range[k] ? ' <span class="ok">&#10003;</span>' : ''}</td>`;
-        };
-        return `<tr>
-          <td><b>${esc(e.label)}</b></td>
-          <td class="num">${a ? a.lift.toFixed(2) + ' <span class="note">[' + a.lo.toFixed(2) + ', ' + a.hi.toFixed(2) + ']</span>' : '&mdash;'}</td>
-          ${cell('simon1')}${cell('no_promo')}${cell('avg_lift')}
-          <td>${e.products}</td></tr>`;
-      }).join('')}</tbody>
+      <thead><tr><th>Engine</th>
+        ${LK.map(k => `<th class="num">${esc(V.effects[k].label)}</th>`).join('')}
+        <th class="num">Mean error</th><th class="num">In CI</th></tr></thead>
+      <tbody>
+        <tr><td><b>Measured</b><br><span class="note">stratified, from receipts</span></td>
+          ${LK.map(k => { const a = V.effects[k].actual;
+            return `<td class="num">${a ? a.lift.toFixed(2) : '&mdash;'}<br>
+              <span class="note">${a ? '[' + a.lo.toFixed(2) + ', ' + a.hi.toFixed(2) + ']' : ''}</span></td>`;
+          }).join('')}
+          <td class="num">&mdash;</td><td class="num">&mdash;</td></tr>
+        ${liftRows.map(r => `<tr${r.mark ? ' class="win"' : ''}>
+          <td><b>${esc(r.label)}</b>${r.llm ? ' <span class="tag">LLM</span>' : ''}<br>
+            <span class="note">${esc(r.note)}</span></td>
+          ${LK.map(k => `<td class="num">${r.get(k).toFixed(2)}${r.inr(k) ? ' <span class="ok">&#10003;</span>' : ''}${
+            r.spread ? `<br><span class="note">&plusmn;${(r.spread(k) / 2).toFixed(2)}</span>` : ''}</td>`).join('')}
+          <td class="num"${w(r.mae === bestMae)}>${r.mae.toFixed(3)}</td>
+          <td class="num">${LK.filter(k => r.inr(k)).length} / ${LK.length}</td></tr>`).join('')}
+      </tbody>
     </table>
-    <p class="note mt8"><b>Read this honestly.</b> Simon-1 wins on AUC and log loss, and it is the only
-    engine that recovers the front-endcap effect (${V.effects.front_endcap.simulated.simon1.toFixed(2)}x
-    against a measured ${V.effects.front_endcap.actual.lift.toFixed(2)}x, where as-usual says 1.00 and the
-    average-lift rule says ${V.avg_lift.toFixed(2)}). With only ${V.holdout.households} households, the
-    front endcap is the one lever the data can resolve: the other three have intervals wide enough to
-    contain no effect at all, and Simon-1 reports close to none for them rather than inventing one.
-    Across all four levers the blunt average-lift rule has slightly lower mean error
-    (${V.lift_mae.avg_lift.toFixed(3)} against ${V.lift_mae.simon1.toFixed(3)}) precisely because
-    guessing the middle of a noisy set is hard to beat. More households is the fix, not more model.</p>
   </div>
+
+  <div class="card mt">
+    <h2>Why every other engine is wrong in the same direction</h2>
+    <p class="note">Stores promote what was already selling. Take every product-week where some
+    store ran an endcap, add up sales on both sides and divide, and the promoted side carries
+    the weeks that were going to be good anyway. That sum says the endcap is worth
+    <b>${fe.naive.toFixed(2)}x</b>. Stratifying it, so a product-week is only ever compared with
+    itself across stores, says <b>${fe.lift.toFixed(2)}x</b>. The gap is the confound, and it is
+    the whole disagreement.</p>
+    <table><thead><tr><th>Change</th><th>Measured between</th><th class="num">Naive, pooled</th>
+      <th class="num">Stratified</th><th class="num">Simon-1</th><th class="num">Strata</th></tr></thead>
+      <tbody>${LK.map(k => { const a = V.effects[k].actual; return `<tr>
+        <td><b>${esc(V.effects[k].label)}</b></td>
+        <td class="note">${esc(a.basis)}</td>
+        <td class="num">${a.naive.toFixed(2)}</td>
+        <td class="num"><b>${a.lift.toFixed(2)}</b></td>
+        <td class="num win">${V.effects[k].simulated.simon1.toFixed(2)}</td>
+        <td class="num">${n0(a.cells)}</td></tr>`; }).join('')}</tbody></table>
+    <p class="note mt8">The average-lift rule measures <b>${V.avg_lift.toFixed(2)}x</b>, which is
+    the naive figure almost exactly.${llmKeys.length ? ` The language models land there too: asked
+    what a front endcap is worth they answer around
+    <b>${(llmKeys.reduce((a, n) => a + llm[n].estimate.front_endcap, 0) / llmKeys.length).toFixed(2)}x</b>,
+    because that is the number the trade press and the textbooks quote.` : ''} Everything that has
+    not done the stratification lands on the folk number. Simon-1 is built on the contrast and
+    lands on the measurement.</p>
+  </div>
+
+  ${llmKeys.length ? `<div class="card mt">
+    <h2>What the language models were asked</h2>
+    <p class="hint">Each model answered ${V.llm.repeats} times. The &plusmn; figure above is half
+    the spread across those runs, which is the part a planner asking once never gets to see.</p>
+    <table><thead><tr><th>Model</th><th class="num">Runs</th>
+      <th class="num">Widest spread</th><th class="num">Mean error</th></tr></thead>
+      <tbody>${llmKeys.map(n => { const e = llm[n];
+        const sp = Math.max(...LK.map(k => e.spread[k]));
+        return `<tr><td><b>${esc(e.label)}</b><br><span class="note">${esc(e.note)}</span></td>
+          <td class="num">${e.draws}</td><td class="num">&plusmn;${(sp / 2).toFixed(2)}</td>
+          <td class="num">${e.lift_mae.toFixed(3)}</td></tr>`; }).join('')}</tbody></table>
+  </div>` : ''}
+
+  ${(V.llm && V.llm.notes && V.llm.notes.length) ? `<div class="card mt">
+    <h2>Not tested</h2>
+    ${V.llm.notes.map(n => `<p class="note">${esc(n)}</p>`).join('')}
+  </div>` : ''}
+
   <div class="card mt">
     <h2>What the model learned</h2>
-    <table><tbody>${STORE.levers.map((l, i) => `<tr><td>${esc(l)}</td>
-      <td class="num">${STORE.beta[i] >= 0 ? '+' : ''}${STORE.beta[i].toFixed(3)} log-odds</td>
-      <td class="num">${Math.exp(STORE.beta[i]).toFixed(2)}x odds</td></tr>`).join('')}</tbody></table>
-    <p class="note mt8">Fitted on the baseline model's own log-odds, so these are the movement a
-    position causes, not the popularity of whatever already sits there.</p>
+    <table><tbody>${V.levers.map((l, i) => `<tr><td>${esc(l)}</td>
+      <td class="num">${V.beta[i] >= 0 ? '+' : ''}${V.beta[i].toFixed(3)} log</td>
+      <td class="num">${Math.exp(V.beta[i]).toFixed(2)}x</td></tr>`).join('')}</tbody></table>
+    <p class="note mt8">Fitted on a log link with one free level per product-week, so these are
+    the movement a position causes between stores that merchandised the same product in the same
+    week differently, not the popularity of whatever already sits there.</p>
   </div>`;
 };
 

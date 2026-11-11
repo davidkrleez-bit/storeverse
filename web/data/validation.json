@@ -4,19 +4,21 @@
    48,
    53
   ],
-  "rows": 492000,
-  "buys": 618,
-  "households": 205,
-  "products": 400,
-  "store": "store_367"
+  "rows": 559090,
+  "buys": 4241,
+  "households": 2123,
+  "products": 70,
+  "stores": 109,
+  "visits": 7987,
+  "promoted_rows": 199993
  },
  "training": {
   "weeks": [
    27,
    47
   ],
-  "rows": 1722000,
-  "buys": 2821,
+  "rows": 1949990,
+  "buys": 15416,
   "history_weeks": [
    1,
    26
@@ -25,290 +27,650 @@
  "engines": {
   "simon1": {
    "label": "Simon-1",
-   "note": "calibrated on this store's own records",
-   "log_loss": 0.0069930859201685295,
-   "brier": 0.0012038683236514607,
-   "auc": 0.9062291836857354,
-   "ece": 0.00027133455864036593,
-   "mean_p": 0.001499059234471422,
-   "actual_rate": 0.0012560975609756098,
+   "note": "calibrated on the chain's own records",
+   "log_loss": 0.03974775155269843,
+   "brier": 0.007299914086336144,
+   "auc": 0.7674368664803101,
+   "ece": 0.0009211645726121347,
+   "mean_p": 0.00787262844300888,
+   "actual_rate": 0.0075855407894972185,
+   "n": 559090,
+   "buys": 4241,
    "reliability": [
     {
      "q": 0,
-     "y": 0.000114,
-     "p": 9.2e-05,
-     "n": 61500
+     "y": 0.00152,
+     "p": 0.001206,
+     "n": 55909
     },
     {
      "q": 1,
-     "y": 1.6e-05,
-     "p": 0.000108,
-     "n": 61500
+     "y": 0.00195,
+     "p": 0.002045,
+     "n": 55909
     },
     {
      "q": 2,
-     "y": 0.000163,
-     "p": 0.000219,
-     "n": 61500
+     "y": 0.00254,
+     "p": 0.002401,
+     "n": 55909
     },
     {
      "q": 3,
-     "y": 0.000293,
-     "p": 0.000379,
-     "n": 61500
+     "y": 0.004024,
+     "p": 0.002891,
+     "n": 55909
     },
     {
      "q": 4,
-     "y": 0.0,
-     "p": 0.00042,
-     "n": 61500
+     "y": 0.003452,
+     "p": 0.003532,
+     "n": 55909
     },
     {
      "q": 5,
-     "y": 0.000569,
-     "p": 0.000477,
-     "n": 61500
+     "y": 0.005187,
+     "p": 0.004611,
+     "n": 55909
     },
     {
      "q": 6,
-     "y": 0.000959,
-     "p": 0.000979,
-     "n": 61500
+     "y": 0.005795,
+     "p": 0.005377,
+     "n": 55909
     },
     {
      "q": 7,
-     "y": 0.007935,
-     "p": 0.009318,
-     "n": 61500
+     "y": 0.00694,
+     "p": 0.00635,
+     "n": 55909
+    },
+    {
+     "q": 8,
+     "y": 0.009712,
+     "p": 0.010306,
+     "n": 55909
+    },
+    {
+     "q": 9,
+     "y": 0.034735,
+     "p": 0.040008,
+     "n": 55909
     }
    ],
-   "lift_mae": 0.21688110873309704
+   "promoted": {
+    "log_loss": 0.05607360896831751,
+    "brier": 0.010901900313616009,
+    "auc": 0.7397044879775524,
+    "ece": 0.0019205967370963235,
+    "mean_p": 0.010678890855003027,
+    "actual_rate": 0.011340396913891986,
+    "n": 199993,
+    "buys": 2268,
+    "reliability": [
+     {
+      "q": 0,
+      "y": 0.00355,
+      "p": 0.001921,
+      "n": 20000
+     },
+     {
+      "q": 1,
+      "y": 0.00425,
+      "p": 0.002716,
+      "n": 19999
+     },
+     {
+      "q": 2,
+      "y": 0.00475,
+      "p": 0.003596,
+      "n": 19999
+     },
+     {
+      "q": 3,
+      "y": 0.0059,
+      "p": 0.004677,
+      "n": 19999
+     },
+     {
+      "q": 4,
+      "y": 0.00795,
+      "p": 0.005402,
+      "n": 20000
+     },
+     {
+      "q": 5,
+      "y": 0.0072,
+      "p": 0.00576,
+      "n": 19999
+     },
+     {
+      "q": 6,
+      "y": 0.0069,
+      "p": 0.006828,
+      "n": 19999
+     },
+     {
+      "q": 7,
+      "y": 0.00935,
+      "p": 0.00866,
+      "n": 19999
+     },
+     {
+      "q": 8,
+      "y": 0.016751,
+      "p": 0.014133,
+      "n": 19999
+     },
+     {
+      "q": 9,
+      "y": 0.0468,
+      "p": 0.053095,
+      "n": 20000
+     }
+    ]
+   },
+   "lift_mae": 0.032217023728135674
   },
   "no_promo": {
    "label": "As-usual",
    "note": "ignores promotion entirely",
-   "log_loss": 0.007053395435718543,
-   "brier": 0.0012001622247439661,
-   "auc": 0.9044083137343604,
-   "ece": 0.000236308244823382,
-   "mean_p": 0.001476639660826177,
-   "actual_rate": 0.0012560975609756098,
+   "log_loss": 0.04065089369068681,
+   "brier": 0.0072988263941008834,
+   "auc": 0.7485617480181136,
+   "ece": 0.0012266475674807585,
+   "mean_p": 0.006358893222016461,
+   "actual_rate": 0.0075855407894972185,
+   "n": 559090,
+   "buys": 4241,
    "reliability": [
     {
      "q": 0,
-     "y": 0.000114,
-     "p": 9.2e-05,
-     "n": 61500
+     "y": 0.001985,
+     "p": 0.00103,
+     "n": 55909
     },
     {
      "q": 1,
-     "y": 3.3e-05,
-     "p": 0.000107,
-     "n": 61500
+     "y": 0.002468,
+     "p": 0.001883,
+     "n": 55909
     },
     {
      "q": 2,
-     "y": 0.00013,
-     "p": 0.000202,
-     "n": 61500
+     "y": 0.003702,
+     "p": 0.002267,
+     "n": 55909
     },
     {
      "q": 3,
-     "y": 0.000341,
-     "p": 0.000379,
-     "n": 61500
+     "y": 0.003828,
+     "p": 0.002533,
+     "n": 55909
     },
     {
      "q": 4,
-     "y": 1.6e-05,
-     "p": 0.000417,
-     "n": 61500
+     "y": 0.004382,
+     "p": 0.002903,
+     "n": 55909
     },
     {
      "q": 5,
-     "y": 0.000504,
-     "p": 0.000475,
-     "n": 61500
+     "y": 0.0044,
+     "p": 0.003519,
+     "n": 55909
     },
     {
      "q": 6,
-     "y": 0.000976,
-     "p": 0.000964,
-     "n": 61500
+     "y": 0.005956,
+     "p": 0.004523,
+     "n": 55909
     },
     {
      "q": 7,
-     "y": 0.007935,
-     "p": 0.009178,
-     "n": 61500
+     "y": 0.006564,
+     "p": 0.005312,
+     "n": 55909
+    },
+    {
+     "q": 8,
+     "y": 0.009981,
+     "p": 0.007578,
+     "n": 55909
+    },
+    {
+     "q": 9,
+     "y": 0.032589,
+     "p": 0.032042,
+     "n": 55909
     }
    ],
-   "lift_mae": 0.24894897634007257
+   "promoted": {
+    "log_loss": 0.058598386025154124,
+    "brier": 0.010898859617932601,
+    "auc": 0.7326184109679705,
+    "ece": 0.004893225292585393,
+    "mean_p": 0.006447171621306594,
+    "actual_rate": 0.011340396913891986,
+    "n": 199993,
+    "buys": 2268,
+    "reliability": [
+     {
+      "q": 0,
+      "y": 0.0031,
+      "p": 0.001124,
+      "n": 20000
+     },
+     {
+      "q": 1,
+      "y": 0.00515,
+      "p": 0.001977,
+      "n": 19999
+     },
+     {
+      "q": 2,
+      "y": 0.00575,
+      "p": 0.002335,
+      "n": 19999
+     },
+     {
+      "q": 3,
+      "y": 0.00655,
+      "p": 0.002682,
+      "n": 19999
+     },
+     {
+      "q": 4,
+      "y": 0.0061,
+      "p": 0.002908,
+      "n": 20000
+     },
+     {
+      "q": 5,
+      "y": 0.00585,
+      "p": 0.00372,
+      "n": 19999
+     },
+     {
+      "q": 6,
+      "y": 0.0094,
+      "p": 0.004645,
+      "n": 19999
+     },
+     {
+      "q": 7,
+      "y": 0.010051,
+      "p": 0.005361,
+      "n": 19999
+     },
+     {
+      "q": 8,
+      "y": 0.014501,
+      "p": 0.007538,
+      "n": 19999
+     },
+     {
+      "q": 9,
+      "y": 0.04695,
+      "p": 0.032183,
+      "n": 20000
+     }
+    ]
+   },
+   "lift_mae": 0.4975545852692057
   },
   "avg_lift": {
    "label": "Average lift",
    "note": "one blanket multiplier for every promotion",
-   "log_loss": 0.00702540882888152,
-   "brier": 0.0012032707743364845,
-   "auc": 0.9058469235286319,
-   "ece": 0.00025519634017841816,
-   "mean_p": 0.0015098446160991276,
-   "actual_rate": 0.0012560975609756098,
+   "log_loss": 0.04038896908001305,
+   "brier": 0.007353712496846785,
+   "auc": 0.7674479063165768,
+   "ece": 0.0014895806461264463,
+   "mean_p": 0.008817053206416002,
+   "actual_rate": 0.0075855407894972185,
+   "n": 559090,
+   "buys": 4241,
    "reliability": [
     {
      "q": 0,
-     "y": 9.8e-05,
-     "p": 9.2e-05,
-     "n": 61500
+     "y": 0.001556,
+     "p": 0.001149,
+     "n": 55909
     },
     {
      "q": 1,
-     "y": 6.5e-05,
-     "p": 0.00011,
-     "n": 61500
+     "y": 0.00186,
+     "p": 0.002072,
+     "n": 55909
     },
     {
      "q": 2,
-     "y": 0.000146,
-     "p": 0.000205,
-     "n": 61500
+     "y": 0.002719,
+     "p": 0.002571,
+     "n": 55909
     },
     {
      "q": 3,
-     "y": 0.000195,
-     "p": 0.000379,
-     "n": 61500
+     "y": 0.003291,
+     "p": 0.003077,
+     "n": 55909
     },
     {
      "q": 4,
-     "y": 0.000179,
-     "p": 0.000432,
-     "n": 61500
+     "y": 0.004328,
+     "p": 0.004135,
+     "n": 55909
     },
     {
      "q": 5,
-     "y": 0.000488,
-     "p": 0.000489,
-     "n": 61500
+     "y": 0.005223,
+     "p": 0.004932,
+     "n": 55909
     },
     {
      "q": 6,
-     "y": 0.000959,
-     "p": 0.000988,
-     "n": 61500
+     "y": 0.005813,
+     "p": 0.005777,
+     "n": 55909
     },
     {
      "q": 7,
-     "y": 0.007919,
-     "p": 0.009383,
-     "n": 61500
+     "y": 0.006385,
+     "p": 0.007701,
+     "n": 55909
+    },
+    {
+     "q": 8,
+     "y": 0.010553,
+     "p": 0.011677,
+     "n": 55909
+    },
+    {
+     "q": 9,
+     "y": 0.034127,
+     "p": 0.045082,
+     "n": 55909
     }
    ],
-   "lift_mae": 0.19523228785199181
+   "promoted": {
+    "log_loss": 0.05832579093043797,
+    "brier": 0.011052296344199049,
+    "auc": 0.732618377518702,
+    "ece": 0.002740514688963177,
+    "mean_p": 0.013319075438754907,
+    "actual_rate": 0.011340396913891986,
+    "n": 199993,
+    "buys": 2268,
+    "reliability": [
+     {
+      "q": 0,
+      "y": 0.0031,
+      "p": 0.002328,
+      "n": 20000
+     },
+     {
+      "q": 1,
+      "y": 0.00515,
+      "p": 0.004096,
+      "n": 19999
+     },
+     {
+      "q": 2,
+      "y": 0.00575,
+      "p": 0.004837,
+      "n": 19999
+     },
+     {
+      "q": 3,
+      "y": 0.00655,
+      "p": 0.005556,
+      "n": 19999
+     },
+     {
+      "q": 4,
+      "y": 0.0061,
+      "p": 0.006025,
+      "n": 20000
+     },
+     {
+      "q": 5,
+      "y": 0.00585,
+      "p": 0.007707,
+      "n": 19999
+     },
+     {
+      "q": 6,
+      "y": 0.0094,
+      "p": 0.009624,
+      "n": 19999
+     },
+     {
+      "q": 7,
+      "y": 0.010051,
+      "p": 0.011107,
+      "n": 19999
+     },
+     {
+      "q": 8,
+      "y": 0.014501,
+      "p": 0.015618,
+      "n": 19999
+     },
+     {
+      "q": 9,
+      "y": 0.04695,
+      "p": 0.066292,
+      "n": 20000
+     }
+    ]
+   },
+   "lift_mae": 0.5743350430510036
   }
  },
  "effects": {
   "secondary_display": {
    "label": "Secondary display",
-   "products": 42,
    "actual": {
-    "lift": 1.413114754098361,
-    "lo": 0.978244252015527,
-    "hi": 2.041941592069904
+    "lift": 1.3248276622200437,
+    "lo": 1.2349409311796147,
+    "hi": 1.4260325848905129,
+    "cells": 343,
+    "naive": 1.9858614676378468,
+    "basis": "between stores, same product-week",
+    "buys_on": 836,
+    "buys_off": 2365
    },
    "simulated": {
-    "simon1": 0.9865164779361929,
+    "simon1": 1.3366516682750305,
     "no_promo": 1.0,
-    "avg_lift": 1.1074333769761615
+    "avg_lift": 2.0718896283202093
    },
+   "cells": 343,
+   "basis": "between stores, same product-week",
    "in_range": {
     "simon1": true,
-    "no_promo": true,
-    "avg_lift": true
+    "no_promo": false,
+    "avg_lift": false
    },
    "abs_error": {
-    "simon1": 0.42659827616216817,
-    "no_promo": 0.41311475409836107,
-    "avg_lift": 0.30568137712219956
+    "simon1": 0.011824006054986791,
+    "no_promo": 0.32482766222004367,
+    "avg_lift": 0.7470619661001656
    }
   },
   "front_endcap": {
    "label": "Front endcap",
-   "products": 45,
    "actual": {
-    "lift": 1.3417533432392277,
-    "lo": 0.896192164403317,
-    "hi": 2.1073563441558956
+    "lift": 1.3432364141198234,
+    "lo": 1.2294207850501846,
+    "hi": 1.4820663432054082,
+    "cells": 296,
+    "naive": 1.949432508137553,
+    "basis": "between stores, same product-week",
+    "buys_on": 571,
+    "buys_off": 2029
    },
    "simulated": {
-    "simon1": 1.277794759389261,
+    "simon1": 1.3122084668267437,
     "no_promo": 1.0,
-    "avg_lift": 1.1074333769761615
+    "avg_lift": 2.0718896283202093
    },
+   "cells": 296,
+   "basis": "between stores, same product-week",
    "in_range": {
     "simon1": true,
-    "no_promo": true,
-    "avg_lift": true
+    "no_promo": false,
+    "avg_lift": false
    },
    "abs_error": {
-    "simon1": 0.06395858384996678,
-    "no_promo": 0.3417533432392277,
-    "avg_lift": 0.23431996626306617
+    "simon1": 0.031027947293079672,
+    "no_promo": 0.3432364141198234,
+    "avg_lift": 0.7286532142003859
    }
   },
   "flyer_interior": {
    "label": "Flyer interior",
-   "products": 133,
    "actual": {
-    "lift": 0.9055690072639224,
-    "lo": 0.6743969389617707,
-    "hi": 1.2247741960792007
+    "lift": 1.6019026464749104,
+    "lo": 1.325288202667695,
+    "hi": 1.90236005879312,
+    "cells": 51,
+    "naive": 1.7420084926154382,
+    "basis": "same product, flyer weeks against other weeks",
+    "buys_on": 1175,
+    "buys_off": 1729
    },
    "simulated": {
-    "simon1": 1.0958268932827828,
+    "simon1": 1.5340106769171034,
     "no_promo": 1.0,
-    "avg_lift": 1.1074333769761615
+    "avg_lift": 2.0718896283202093
    },
+   "cells": 51,
+   "basis": "same product, flyer weeks against other weeks",
    "in_range": {
     "simon1": true,
-    "no_promo": true,
-    "avg_lift": true
+    "no_promo": false,
+    "avg_lift": false
    },
    "abs_error": {
-    "simon1": 0.1902578860188604,
-    "no_promo": 0.09443099273607758,
-    "avg_lift": 0.2018643697122391
+    "simon1": 0.06789196955780707,
+    "no_promo": 0.6019026464749104,
+    "avg_lift": 0.46998698184529886
    }
   },
   "flyer_front": {
    "label": "Flyer front page",
-   "products": 93,
    "actual": {
-    "lift": 1.146496815286624,
-    "lo": 0.7812618213779299,
-    "hi": 1.5728360845126745
+    "lift": 1.7202516182620453,
+    "lo": 1.3208832903225853,
+    "hi": 2.2208487237742167,
+    "cells": 25,
+    "naive": 1.7190461433099533,
+    "basis": "same product, flyer weeks against other weeks",
+    "buys_on": 544,
+    "buys_off": 685
    },
    "simulated": {
-    "simon1": 0.9597871263852311,
+    "simon1": 1.7021274462553762,
     "no_promo": 1.0,
-    "avg_lift": 1.1074333769761615
+    "avg_lift": 2.0718896283202093
    },
+   "cells": 25,
+   "basis": "same product, flyer weeks against other weeks",
    "in_range": {
     "simon1": true,
-    "no_promo": true,
+    "no_promo": false,
     "avg_lift": true
    },
    "abs_error": {
-    "simon1": 0.18670968890139283,
-    "no_promo": 0.14649681528662395,
-    "avg_lift": 0.03906343831046244
+    "simon1": 0.01812417200666916,
+    "no_promo": 0.7202516182620453,
+    "avg_lift": 0.351638010058164
    }
   }
  },
- "avg_lift": 1.1074333769761615,
+ "avg_lift": 2.0718896283202093,
  "lift_mae": {
-  "simon1": 0.21688110873309704,
-  "no_promo": 0.24894897634007257,
-  "avg_lift": 0.19523228785199181
+  "simon1": 0.032217023728135674,
+  "no_promo": 0.4975545852692057,
+  "avg_lift": 0.5743350430510036
+ },
+ "levers": [
+  "Secondary display",
+  "Front endcap",
+  "Flyer interior",
+  "Flyer front page"
+ ],
+ "beta": [
+  0.279851734826663,
+  0.2783809796607305,
+  0.6043056654043021,
+  0.6510116312159899
+ ],
+ "llm": {
+  "engines": {
+   "claude": {
+    "estimate": {
+     "secondary_display": 1.56,
+     "front_endcap": 2.34,
+     "flyer_interior": 1.35,
+     "flyer_front": 1.77
+    },
+    "spread": {
+     "secondary_display": 0.20000000000000018,
+     "front_endcap": 0.19999999999999973,
+     "flyer_interior": 0.09999999999999987,
+     "flyer_front": 0.19999999999999996
+    },
+    "draws": 5,
+    "raw": [
+     {
+      "secondary_display": 1.6,
+      "front_endcap": 2.4,
+      "flyer_interior": 1.4,
+      "flyer_front": 1.9
+     },
+     {
+      "secondary_display": 1.6,
+      "front_endcap": 2.3,
+      "flyer_interior": 1.35,
+      "flyer_front": 1.75
+     },
+     {
+      "secondary_display": 1.6,
+      "front_endcap": 2.4,
+      "flyer_interior": 1.3,
+      "flyer_front": 1.7
+     },
+     {
+      "secondary_display": 1.4,
+      "front_endcap": 2.2,
+      "flyer_interior": 1.3,
+      "flyer_front": 1.7
+     },
+     {
+      "secondary_display": 1.6,
+      "front_endcap": 2.4,
+      "flyer_interior": 1.4,
+      "flyer_front": 1.8
+     }
+    ],
+    "label": "Claude",
+    "note": "a general-purpose LLM asked to estimate",
+    "lift_mae": 0.38339673796824947,
+    "in_range": {
+     "secondary_display": false,
+     "front_endcap": false,
+     "flyer_interior": true,
+     "flyer_front": true
+    },
+    "in_range_count": 2
+   }
+  },
+  "notes": [
+   "OPENROUTER_API_KEY is not set, so TypeSafe's Jev and the other hosted models were not scored. Jev has no free endpoint and no local weights, so there is no way to run it from here without a key. Set the key and re-run this script to fill the column in; nothing else needs to change."
+  ],
+  "repeats": 5,
+  "prompt": "You are estimating promotional response for a US supermarket chain, for a planning decision worth real money.\n\nFor a typical mid-selling grocery product (not a top-10 staple), estimate how its weekly unit sales change under each merchandising treatment below, compared with the same product sitting on its normal shelf with no promotion. Price is unchanged in every case. Report the multiple of baseline unit sales.\n\n1. secondary_display: moved to a secondary in-aisle or in-shelf display, still no flyer\n2. front_endcap: moved to a front-of-store endcap, still no flyer\n3. flyer_interior: stays on its normal shelf, featured on an interior page of the weekly flyer\n4. flyer_front: stays on its normal shelf, featured on the front page of the weekly flyer\n\nAnswer with ONLY a JSON object, no prose and no code fence:\n{\"secondary_display\": <number>, \"front_endcap\": <number>, \"flyer_interior\": <number>, \"flyer_front\": <number>}\n\nA multiple of 1.0 means no change. Give your single best point estimate for each."
  }
 }

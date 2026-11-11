@@ -1,6 +1,6 @@
 # Demo script
 
-Four minutes. One store, one decision, one number that holds up.
+Four minutes. One store, one decision, and a number that survives a statistician.
 
 **Before you start**
 
@@ -8,125 +8,135 @@ Four minutes. One store, one decision, one number that holds up.
 python server.py
 ```
 
-Open `http://localhost:8000`, leave it on **The space**, and have one photo of a shop
-interior on the desktop if you want to show the vision path.
+Open `http://localhost:8000`, leave it on **The space**, and have a photo of a shop interior
+on the desktop if you want to show the vision path.
 
 ---
 
 ### 0:00 — The problem (20s)
 
-> Every grocery store has two or three positions that sell, and everything else is shelf.
-> Entrance endcap, the flyer front page, the mid-floor island. Deciding what goes there is
-> worth millions a year, and it is almost always decided by whoever shouts loudest. Simon
-> decides it with the receipts.
+> Every grocery store has two or three positions that actually sell. Entrance endcap, the
+> flyer front page, the mid-floor island. Deciding what goes there is worth millions a year
+> and it is almost always decided by whoever shouts loudest. Simon decides it from receipts.
 
 ### 0:20 — The space (40s)
 
-On screen 1. Orbit the 3D floor once, then hit **Plan**.
+Orbit the 3D floor once, then hit **Plan**.
 
-> This is a neighbourhood supermarket. Ten category zones, five display positions worth
-> fighting over, five flyer slots. The 3D and the plan are the same object the simulator
-> scores, so nothing here is decoration.
+> A neighbourhood supermarket. Ten category zones, five display positions worth fighting
+> over, five flyer slots. The 3D and the plan are the same object the simulator scores, so
+> nothing here is decoration.
 
-Optional, if the room is warm: drop a photo on **Build from photos**. It reads the fixtures,
-the poster style and the product zones and rebuilds the floor. If it is slow or the laptop
-is offline, say so and move on. The demo floor carries the rest.
+Optional: drop a photo on **Build from photos**. It reads the fixtures, the poster style and
+the product zones and rebuilds the floor. If it is slow or you are offline, say so and move
+on. The demo floor carries the rest.
 
 ### 1:00 — Today (40s)
 
 Screen 2.
 
-> Here is what the store sells this week at its current layout. Look at the bottom panel.
+> This is the store as it stands. The prime positions have gone to crackers, soft drinks and
+> cheese, which are the three biggest sellers on this floor. That is how these decisions
+> normally get made, and it is a perfectly reasonable-looking plan.
 
-Read it out.
+Pause.
 
-> Soft drinks holds an entrance endcap and only moves 1.18x when you promote it. Juice holds
-> the other one and moves 1.02x, which is nothing. Meanwhile cold cereal, the strongest
-> responder on this floor at 2.34x, is sitting on plain shelf and is not in the flyer.
-> Both prime positions are being spent on categories that do not respond.
+> It is also wrong, because selling the most and responding the most are different things.
+> Bacon on this floor responds nearly five times over when you promote it, and right now it
+> is on plain shelf and not in the flyer.
 
 ### 1:40 — One scenario (40s)
 
-Screen 3. Set **Entrance endcap (left)** to Cold cereal. Set **Flyer interior A** to Cold cereal.
+Screen 3. Put **Bacon** on **Entrance endcap (left)** and into **Flyer interior A**.
 
 > One move. Simon rescores the whole floor against the same shoppers, so the only thing that
 > changed is the plan.
 
 Point at the delta.
 
-> That is the model doing the thing it was built for: estimating the effect of a change
-> before anyone touches a shelf.
+> That is the model doing the thing it exists for: estimating the effect of a change before
+> anyone touches a shelf.
 
-### 2:20 — Let it search (50s)
+### 2:20 — Let it search (40s)
 
 Screen 4. Click **Run 1,000 scenarios**.
 
-> Now stop guessing. Simon builds a thousand complete plans, respects the real constraint
-> that there are only five display positions and five flyer slots, scores every one against
-> the same shoppers, and keeps the best.
+> A thousand complete plans, each respecting the real constraint that there are only five
+> display positions and five flyer slots, all scored against the same shoppers.
 
 Point at the three numbers, then the histogram.
 
-> Best plan found is about 31% ahead of today. The red line is the store as it stands, and
-> it sits near the bottom of the distribution. 98% of randomly generated plans beat the
-> layout this store is actually running.
+> Best plan found is about 35% ahead, roughly seven hundred dollars a week on this floor.
+> And notice: only 395 of the thousand random plans beat today. Today's plan is genuinely
+> decent, around the sixtieth percentile. The model still finds a third more.
 
-Point at **What the winner changes**.
+### 3:00 — Why believe it (60s)
 
-> Cold cereal and bag snacks take the two entrance endcaps. Juice drops to a secondary
-> position. Nine moves, no new stock, no price changes, same footfall.
+**Model check**. This is the part that wins or loses the judging. Go slowly.
 
-### 3:10 — Why believe it (50s)
+> Simon-1 never sees the last six weeks. It is then scored on all 559,090 decisions in them.
+> Best AUC, best log loss. But look at the second table, because that is the real claim.
 
-**Model check** in the sidebar. This is the part that wins or loses the judging.
+Point at the lift table.
 
-> Simon-1 never sees the last six weeks. It is then scored on all 492,000
-> household-product-week decisions in them, against two baselines a planner would otherwise
-> use: ignore promotion, or apply one average lift to everything. Best AUC, best log loss.
+> Measured is the lift read off holdout receipts with a confidence interval. Simon-1 is
+> inside the interval on all four levers, mean error 0.032. Ignore-promotion: zero out of
+> four. The average-lift rule: one out of four. Claude, asked the same question in words:
+> two out of four, mean error twelve times ours.
 
-Scroll to the effect table.
+Then the third card, deliberately.
 
-> This is the one that matters. The measured column is the lift read straight off receipts,
-> each product compared against itself in weeks it did and did not hold that position.
-> Front endcap measures 1.34. Simon-1 says 1.28. Ignore-promotion says 1.00, average-lift
-> says 1.11.
-
-Then, deliberately, read the honest paragraph.
-
-> And it is not a clean sweep. With 205 households the front endcap is the only lever this
-> data can resolve. The other three have intervals wide enough to contain no effect at all,
-> and Simon-1 reports close to none for them rather than inventing one. Across all four
-> levers the blunt average-lift rule actually edges us on mean error, because guessing the
-> middle of a noisy set is hard to beat. More households fixes that. More model does not.
+> And here is why they all fail the same way. Stores promote what was already selling. If
+> you pool every product-week and divide, you get 1.95x for an endcap. That is the number a
+> spreadsheet produces. Stratify it, so a product-week is only ever compared against itself
+> across stores, and it is 1.34x.
+>
+> The average-lift rule says 2.07. Claude says 2.34. Both land on the naive figure, because
+> that is the number the textbooks quote. Everything that has not done the stratification
+> lands on the folk number. We're built on the contrast, so we land on the measurement.
 
 ### 4:00 — Close (10s)
 
-> Simon gets the lever that matters right, refuses to make up the ones it cannot see, and
-> turns that into a floor plan you can hand to a store manager on Monday.
+> Simon tells a store manager which three things to move on Monday, and it is the only engine
+> in that table that can tell you how much it will be worth without being out by a factor of
+> two.
 
 ---
 
 ## Questions you will get
 
-**"Did you just fit the promotion coefficient to the thing you are testing?"**
-No. The coefficients are fitted on weeks 27 to 47. The measured lifts come from weeks 48 to
-53, which the model never sees in any form. The behavioural features come from weeks 1 to 26,
-so they cannot leak labels either.
+**"Did you fit the coefficient to the thing you are testing?"**
+No. Coefficients are fitted on weeks 27–47. The measured lifts come from weeks 48–53, which
+the model never sees in any form. Behavioural features come from weeks 1–26, so they cannot
+leak labels either.
 
-**"Why is the AUC gap so small?"**
-Because most of the predictive signal in grocery is household habit, and all three engines
-have it. The gap between them is exactly the part placement explains, which is the only part
-Simon-1 is claiming. A big AUC gap here would mean the baselines were strawmen.
+**"How do you know 1.34 is right and 1.95 is wrong?"**
+Three independent identification strategies agree: between stores within a product-week,
+within a store across weeks, and within a store-week across products all land in the same
+place once stratified. The pooled number is the only one that disagrees, and it disagrees in
+exactly the direction selection bias predicts.
 
-**"Why those products and not the whole catalogue?"**
-Staples do not respond to merchandising: the top 147 products by volume show a lift of about
-1.0. Fitting on them produces a null result. Simon trains on the mid-tail, where the store
-actually varied placement and where the response is. That is a finding, not a convenience.
+**"Why is the AUC gap small?"**
+Most of the predictive signal in grocery is household habit, and all three engines have it.
+The gap between them is exactly the part placement explains, which is all Simon-1 claims. The
+promoted-rows columns isolate it: on the 360,000 decisions where nothing was promoted, the
+engines are identical by construction.
+
+**"Did you test Jev?"**
+Not yet, and the app says so on the Model check screen. Jev is a proprietary decision model
+with no free endpoint and no local weights, so it needs an OpenRouter key we do not have. The
+harness is written and the column is wired through; set `OPENROUTER_API_KEY` and re-run one
+script and it fills in. Same for GPT, Gemini and Llama.
+
+**"Why those 70 products?"**
+Staples do not respond to merchandising — the top products by volume show a lift of about 1.0.
+Fitting on them produces a null result. Simon trains on the mid-tail, where the chain actually
+varied placement. That is a finding, not a convenience.
 
 **"Revenue numbers look small."**
-They are the promotable items Simon models in ten categories, not the store's whole basket,
-scaled to 12,000 weekly visits. The percentage change is the number to read.
+They cover the promotable items Simon models in ten categories, not the store's whole basket,
+scaled to 12,000 weekly visits. Read the percentage.
 
 **"Can it do my store?"**
 The floor comes from photos. The response surface needs that chain's own receipts, and the
-whole pipeline retrains in about two minutes.
+whole pipeline retrains in about four minutes.

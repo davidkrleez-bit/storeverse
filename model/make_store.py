@@ -7,16 +7,16 @@ by_cat = {c["category"]: c for c in surf["categories"]}
 
 # Shelf homes. Each zone is a real fixture with a real category behind it.
 ZONES = [
-    ("COLD CEREAL",              "Cold cereal",        "gondola", 5.0, 12.0, 2.2, 13.0),
-    ("SOFT DRINKS",              "Soft drinks",        "gondola", 9.5, 12.0, 2.2, 13.0),
-    ("BAG SNACKS",               "Bag snacks",         "gondola", 14.0, 12.0, 2.2, 13.0),
-    ("SOUP",                     "Soup",               "gondola", 18.5, 12.0, 2.2, 13.0),
-    ("FROZEN PIZZA",             "Frozen pizza",       "cooler",  22.6, 12.5, 1.6, 12.0),
-    ("CHEESE",                   "Cheese",             "cooler",  22.6, 26.0, 1.6,  6.5),
-    ("YOGURT",                   "Yogurt",             "cooler",   2.0, 20.0, 1.6, 10.0),
-    ("BAKED BREAD/BUNS/ROLLS",   "Bakery",             "wall",     8.0, 32.0, 6.0,  1.4),
-    ("SALAD MIX",                "Salad and produce",  "island",  15.5, 31.2, 4.6,  2.6),
-    ("JUICE",                    "Juice",              "wall",    20.5, 32.0, 4.0,  1.4),
+    ("SOFT DRINKS",            "Soft drinks",     "gondola", 5.0, 12.0, 2.2, 13.0),
+    ("BAG SNACKS",             "Bag snacks",      "gondola", 9.5, 12.0, 2.2, 13.0),
+    ("CRACKERS/MISC BKD FD",   "Crackers",        "gondola", 14.0, 12.0, 2.2, 13.0),
+    ("MEAT - SHELF STABLE",    "Shelf-stable meat", "gondola", 18.5, 12.0, 2.2, 13.0),
+    ("ISOTONIC DRINKS",        "Sports drinks",   "gondola", 18.5, 27.0, 2.2, 5.0),
+    ("FROZEN PIZZA",           "Frozen pizza",    "cooler",  22.6, 12.5, 1.6, 12.0),
+    ("CHEESE",                 "Cheese",          "cooler",  22.6, 26.0, 1.6,  6.5),
+    ("YOGURT",                 "Yogurt",          "cooler",   2.0, 20.0, 1.6, 10.0),
+    ("BACON",                  "Bacon",           "cooler",   2.0, 30.0, 1.6,  5.0),
+    ("BAKED BREAD/BUNS/ROLLS", "Bakery",          "wall",     9.0, 32.0, 7.0,  1.4),
 ]
 
 # The scarce positions a merchandiser actually fights over.
@@ -62,11 +62,16 @@ store = {
     ],
     "zones": zones,
     "slots": SLOTS,
-    # Where things sit today, before anyone optimises. This is the "as found" plan.
-    "current": {"endcap_front_left": "SOFT DRINKS", "endcap_front_right": "JUICE",
-                "island_mid": "SOUP", "island_rear": None, "checklane": "BAG SNACKS",
-                "flyer_front_1": "JUICE", "flyer_front_2": "SOFT DRINKS",
-                "flyer_in_1": "SOUP", "flyer_in_2": "FROZEN PIZZA", "flyer_in_3": None},
+    # Where things sit today: the prime positions go to the categories that sell most,
+    # which is how these decisions are usually made. It is a reasonable-looking plan and it
+    # is still wrong, because selling most and responding most are different things.
+    "current": {"endcap_front_left": "CRACKERS/MISC BKD FD",
+                "endcap_front_right": "SOFT DRINKS",
+                "island_mid": "CHEESE", "island_rear": None,
+                "checklane": "BAG SNACKS",
+                "flyer_front_1": "CRACKERS/MISC BKD FD", "flyer_front_2": "SOFT DRINKS",
+                "flyer_in_1": "CHEESE", "flyer_in_2": "MEAT - SHELF STABLE",
+                "flyer_in_3": None},
     "display_labels": surf["display_labels"],
     "mailer_labels": surf["mailer_labels"],
     "levers": surf["levers"], "beta": surf["beta"], "auc": surf["auc"],
