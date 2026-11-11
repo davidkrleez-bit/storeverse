@@ -17,6 +17,14 @@ let plan = {};        // slot id -> category: the plan currently on screen
 let baseline = null;  // the store as found, scored once at boot
 let sweep = null;     // last optimisation run
 let BASE_ZONES = null; // every trained category with its fitted surface, kept pristine
+let GOAL = null;      // the written goal, once it has been turned into search parameters
+
+// The example goal. A real one: a shopkeeper with a new line coming in, who wants it to
+// sell and to be understood, and who has not read a word about merchandising.
+const SAMPLE_GOAL = "I have a new product collaboration coming in and want to sell this "
+  + "product as much as possible in the next coming weeks. How should I display this product "
+  + "and promote it for maximum revenue from this product (make it clear what it is, this new "
+  + "chip snack)";
 let VISION = null;    // last photo read, so the match can stay on screen
 
 // ------------------------------------------------------------------ scoring
@@ -45,6 +53,22 @@ function score(assign) {
     return { ...z, d: d[z.category], m: m[z.category], p, units: u, revenue: r, lift: p / z.base };
   });
   return { units, revenue, rows, d, m };
+}
+
+/**
+ * What the search is trying to make big.
+ *
+ * With no goal that is the store's whole takings. With one, it is the takings of the
+ * category the goal is about - which is a different plan, and usually a worse one for
+ * the store overall. Both numbers are reported, because a shopkeeper pushing one line
+ * deserves to see what it costs the rest of the shop.
+ */
+function objectiveOf(sc) {
+  if (GOAL && GOAL.target && GOAL.objective === 'category_revenue') {
+    const r = sc.rows.find(x => x.category === GOAL.target);
+    return r ? r.revenue : 0;
+  }
+  return sc.revenue;
 }
 
 const emptyPlan = () => Object.fromEntries(STORE.slots.map(s => [s.id, null]));
@@ -92,6 +116,11 @@ VIEWS.space = () => {
           <input type="file" id="file" accept="image/*" multiple hidden>
           <b>Drop photos here</b><br><span>or <u id="browse" style="cursor:pointer">browse</u></span>
         </div>
+        <div class="row mt8">
+          <button class="ghost" id="useexample">Use the example store</button>
+        </div>
+        <p class="hint mt8">No photos to hand? The example is a real shop, read the same way:
+        four views of a public scan of Fortuna Supermarket, through the same two passes.</p>
         <div id="vstat" class="mt8">${VISION ? visionHTML(VISION) : ''}</div>
       </div>
       <div class="card mt">
@@ -107,6 +136,19 @@ VIEWS.space = () => {
       </div>
     </div>
   </div>`;
+  const ux = $('#useexample');
+  if (ux) ux.onclick = async () => {
+    ux.disabled = true; ux.textContent = 'Loading…';
+    const stat = $('#vstat');
+    try {
+      const spec = await fetch('data/example.json').then(r => r.json());
+      stat.innerHTML = `<div class="note">Reading the example store…</div>`;
+      applySpec(spec);
+    } catch (e) {
+      ux.disabled = false; ux.textContent = 'Use the example store';
+      stat.innerHTML = `<div class="note"><b>Could not load the example.</b> ${esc(e.message)}</div>`;
+    }
+  };
   mountScene($('#three'), STORE);
   updateScene(plan, score(plan));
   $('#t3d').onclick = () => stageMode(true);
@@ -316,21 +358,144 @@ function slotRow(s) {
 }
 
 // --------------------------------------------------------------- step 4
+// ------------------------------------------------------------------- goals
+//
+// A goal written in plain words becomes two things: which category the search should be
+// making big, and which trade-off the reader is shown. The model never answers the
+// merchandising question - that is the simulator's job, and the whole point is that the
+// answer comes from fitted numbers rather than from a chat.
+
+/**
+ * The offline reader.
+ *
+ * A keyword match, not a model, and it says so on screen. It exists because the hosted
+ * build has no server behind it, and a demo that cannot read "this new chip snack"
+ * without one is not much of a demo.
+ */
+const CAT_WORDS = {
+  'BAG SNACKS': ['chip', 'crisp', 'snack', 'tortilla', 'popcorn', 'pretzel', 'nacho'],
+  'SOFT DRINKS': ['soft drink', 'soda', 'cola', 'fizzy', 'pop', 'lemonade', 'juice'],
+  'ISOTONIC DRINKS': ['sports drink', 'isotonic', 'electrolyte', 'energy drink', 'gatorade'],
+  'CRACKERS/MISC BKD FD': ['cracker', 'biscuit', 'cookie', 'wafer'],
+  'CHEESE': ['cheese'],
+  'YOGURT': ['yogurt', 'yoghurt', 'dairy'],
+  'BACON': ['bacon', 'rasher'],
+  'MEAT - SHELF STABLE': ['jerky', 'canned meat', 'tinned meat', 'spam', 'meat'],
+  'FROZEN PIZZA': ['pizza', 'frozen'],
+  'BAKED BREAD/BUNS/ROLLS': ['bread', 'bun', 'roll', 'bakery', 'loaf', 'baguette'],
+};
+
+function localGoal(text) {
+  const s = String(text).toLowerCase();
+  const here = new Set(BASE_ZONES.map(z => z.category));
+  let hit = null, hitWord = '';
+  for (const [cat, words] of Object.entries(CAT_WORDS)) {
+    if (!here.has(cat)) continue;
+    for (const w of words) {
+      // Longest matching word wins, so "sports drink" beats "drink".
+      if (s.includes(w) && w.length > hitWord.length) { hit = cat; hitWord = w; }
+    }
+  }
+  const vis = /\bclear\b|explain|notice|noticed|understand|what it is|aware|discover/.test(s);
+  const nodisc = /without (a )?discount|no discount|don'?t discount|without cutting|keep the price|full price/.test(s);
+  return {
+    target: hit,
+    target_reason: hit
+      ? `matched on "${hitWord}" - ${titleOf(hit)} is the nearest trained category, standing in for your product`
+      : 'nothing in the goal matched a trained category, so the search optimises the whole store',
+    objective: hit ? 'category_revenue' : 'store_revenue',
+    visibility_first: vis, avoid_discounts: nodisc, horizon: null,
+    restated: hit
+      ? `Make ${titleOf(hit)} earn as much as possible, using display positions and flyer slots.`
+      : 'Make the store earn as much as possible.',
+    caveat: 'Read by keyword match, not by a model. The simulator moves display positions '
+      + 'and flyer slots only: shelf-edge signs, packaging and price are outside it.',
+    parsed_by: 'keywords',
+  };
+}
+
+async function readGoal(text) {
+  const slots = STORE.slots.map(s => `${s.label} (${s.kind}, level ${s.level})`);
+  try {
+    const r = await fetch('/api/goal', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, categories: BASE_ZONES.map(z => z.category), slots }),
+    });
+    if (!r.ok || !(r.headers.get('content-type') || '').includes('json')) throw new Error('no server');
+    const j = await r.json();
+    if (j.error) throw new Error(j.error);
+    if (j.target && !BASE_ZONES.some(z => z.category === j.target)) j.target = null;
+    return j;
+  } catch {
+    return localGoal(text);          // hosted build, or the CLI is not there
+  }
+}
+
+function goalHTML(g) {
+  if (!g) return '';
+  const chips = [
+    g.target ? `<span class="chipv on">Target &middot; ${esc(titleOf(g.target))}</span>` : '',
+    `<span class="chipv">${g.objective === 'category_revenue' ? 'Maximise that category' : 'Maximise the whole store'}</span>`,
+    g.visibility_first ? '<span class="chipv">Favour positions people see</span>' : '',
+    g.avoid_discounts ? '<span class="chipv">No price cuts</span>' : '',
+    g.horizon ? `<span class="chipv">${esc(g.horizon)}</span>` : '',
+    `<span class="chipv quiet">read by ${g.parsed_by === 'model' ? 'the model' : 'keyword match'}</span>`,
+  ].filter(Boolean).join('');
+  return `<div class="goalread">
+    <div class="grestate">&ldquo;${esc(g.restated)}&rdquo;</div>
+    <div class="chips">${chips}</div>
+    ${g.target_reason ? `<p class="note mt8">${esc(g.target_reason)}</p>` : ''}
+    ${g.caveat ? `<p class="warn mt8"><b>What this cannot do.</b> ${esc(g.caveat)}</p>` : ''}
+  </div>`;
+}
+
 VIEWS.optimise = () => {
+  const g = GOAL;
+  const forCat = g && g.target && g.objective === 'category_revenue';
   view.innerHTML = `
   <div class="head">
     <div class="eyebrow">Step 4</div>
     <h1>Let the model search</h1>
     <p class="sub">StoreVerse builds a thousand complete plans, scores each one against the same
     shoppers, and keeps the best. Every plan respects the real constraint: a category can hold
-    one display position and one flyer slot, and there are only five of each.</p>
+    one display position and one flyer slot, and there are only
+    ${STORE.slots.filter(s => s.kind === 'display').length} and
+    ${STORE.slots.filter(s => s.kind === 'mailer').length} of them.</p>
   </div>
-  <div class="row">
-    <button id="run">Run 1,000 scenarios</button>
+
+  <div class="card">
+    <div class="chead"><h2>What are you trying to do?</h2></div>
+    <p class="hint">Write it the way you would say it out loud. StoreVerse turns it into what the
+    search should be making big &mdash; it does not answer the question, because the answer comes
+    from the fitted numbers and not from a chat.</p>
+    <textarea id="goal" rows="3" spellcheck="false">${esc(g ? g.text || SAMPLE_GOAL : SAMPLE_GOAL)}</textarea>
+    <div class="row mt8">
+      <button id="readgoal">Read this goal</button>
+      <button class="ghost" id="samplegoal">Reset to the example</button>
+      ${g ? '<button class="ghost" id="cleargoal">Drop it, plan for the whole store</button>' : ''}
+    </div>
+    <div id="goalout">${goalHTML(g)}</div>
+  </div>
+
+  <div class="row mt">
+    <button id="run">${forCat ? `Find the best plan for ${esc(titleOf(g.target))}` : 'Run 1,000 scenarios'}</button>
     <button class="ghost" id="apply" ${sweep ? '' : 'disabled'}>Apply the winner</button>
   </div>
   <div id="out" class="mt">${sweep ? sweepHTML() : '<p class="note">Not run yet.</p>'}</div>`;
+
   $('#run').onclick = runSweep;
+  $('#samplegoal').onclick = () => { $('#goal').value = SAMPLE_GOAL; };
+  const cg = $('#cleargoal');
+  if (cg) cg.onclick = () => { GOAL = null; sweep = null; VIEWS.optimise(); };
+  $('#readgoal').onclick = async () => {
+    const btn = $('#readgoal'), text = $('#goal').value;
+    btn.disabled = true; btn.textContent = 'Reading…';
+    $('#goalout').innerHTML = '<p class="note mt8">Turning that into search parameters…</p>';
+    const parsed = await readGoal(text);
+    GOAL = { ...parsed, text };
+    sweep = null;                     // a new goal means the old search answered a different question
+    VIEWS.optimise();
+  };
   const ap = $('#apply');
   if (ap && sweep) ap.onclick = () => { plan = { ...sweep.best.assign }; go('scenario'); };
   // The canvas is new every time this view is rebuilt, so it has to be redrawn here
@@ -360,39 +525,58 @@ function runSweep() {
   let seed = 20261111;
   const rnd = () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296;
   const N = 1000, results = [], running = [];
-  let best = null;
+  let best = null, bestObj = -Infinity;
   for (let i = 0; i < N; i++) {
     const assign = randomPlan(rnd);
     const sc = score(assign);
-    results.push(sc.revenue);
-    if (!best || sc.revenue > best.revenue) best = { assign, ...sc };
-    running.push(best.revenue);
+    const obj = objectiveOf(sc);
+    results.push(obj);
+    if (!best || obj > bestObj) { best = { assign, ...sc }; bestObj = obj; }
+    running.push(bestObj);
   }
-  sweep = { N, results, running, best };
+  sweep = { N, results, running, best, bestObj, goal: GOAL };
   VIEWS.optimise();
 }
 
 function sweepHTML() {
   const { N, results, best } = sweep;
-  const b = baseline.revenue;
+  const g = sweep.goal;
+  const forCat = g && g.target && g.objective === 'category_revenue';
+  const b = forCat ? objectiveOf(baseline) : baseline.revenue;
+  const bv = forCat ? objectiveOf(best) : best.revenue;
+  // Pushing one line is not free. Whatever the search was told to maximise, the store's
+  // own takings are reported beside it.
+  const storeDelta = best.revenue - baseline.revenue;
   const better = results.filter(r => r > b).length;
   const sorted = [...results].sort((x, y) => x - y);
   const med = sorted[Math.floor(N / 2)];
   const bl = levels(best.assign), dl = levels(plan);
   const moves = STORE.slots.filter(s => (best.assign[s.id] || null) !== (STORE.current[s.id] || null));
   return `
-  <div class="grid3">
-    <div class="stat"><div class="l">Best plan found</div><div class="v">${money(best.revenue)}</div>
-      <div class="d up">${pctd((best.revenue - b) / b * 100)} against today</div></div>
+  ${forCat ? `<div class="verdict"><div class="vmain">
+    <div class="vnum">${pctd((bv - b) / b * 100)}</div>
+    <div class="vcap"><b>Best weekly revenue for ${esc(titleOf(g.target))}: ${money(bv)},
+    against ${money(b)} today.</b> That is what the search was told to make big, and this is
+    the best of ${n0(N)} complete plans.
+    ${storeDelta < -0.5 ? `The store as a whole gives up ${money(-storeDelta)} a week to get it:
+    the positions this plan takes were earning more on something else.`
+      : `The store as a whole is also ${money(storeDelta)} a week better off, so nothing was
+    sacrificed to get it.`}</div></div></div>` : ''}
+  <div class="grid3${forCat ? ' mt' : ''}">
+    <div class="stat"><div class="l">${forCat ? esc(titleOf(g.target)) + ', best found' : 'Best plan found'}</div>
+      <div class="v">${money(bv)}</div>
+      <div class="d up">${pctd((bv - b) / b * 100)} against today</div></div>
     <div class="stat"><div class="l">Median of ${n0(N)}</div><div class="v">${money(med)}</div>
       <div class="d">${pctd((med - b) / b * 100)} against today</div></div>
-    <div class="stat"><div class="l">Plans beating today</div><div class="v">${n0(better)}</div>
-      <div class="d">${(better / N * 100).toFixed(1)}% of the search</div></div>
+    <div class="stat"><div class="l">Whole store, this plan</div>
+      <div class="v">${money(best.revenue)}</div>
+      <div class="d ${storeDelta >= 0 ? 'up' : 'down'}">${pctd(storeDelta / baseline.revenue * 100)} against today</div></div>
   </div>
   <div class="grid2 mt">
     <div class="card">
       <h2>Where the thousand plans landed</h2>
-      <p class="hint">Weekly revenue per plan. The line is the store as it stands today.</p>
+      <p class="hint">${forCat ? esc(titleOf(g.target)) + ' revenue' : 'Weekly revenue'} per plan.
+      The line is the store as it stands today.</p>
       <canvas id="hist"></canvas>
     </div>
     <div class="card">
@@ -433,7 +617,9 @@ function drawHist() {
   const W = cv.clientWidth || 500, H = 150;
   cv.width = W * dpr; cv.height = H * dpr;
   const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0);
-  const vals = sweep.results, lo = Math.min(...vals, baseline.revenue), hi = Math.max(...vals);
+  const base = sweep.goal && sweep.goal.target && sweep.goal.objective === 'category_revenue'
+    ? objectiveOf(baseline) : baseline.revenue;
+  const vals = sweep.results, lo = Math.min(...vals, base), hi = Math.max(...vals);
   const bins = 42, counts = new Array(bins).fill(0);
   for (const v of vals) counts[Math.min(bins - 1, Math.floor((v - lo) / (hi - lo) * bins))]++;
   const mx = Math.max(...counts), pad = 6, bw = (W - pad * 2) / bins;
@@ -443,10 +629,10 @@ function drawHist() {
     g.fillStyle = '#cfe0d9';
     g.fillRect(pad + i * bw, H - 18 - h, Math.max(1, bw - 1.5), h);
   });
-  const bx = pad + (baseline.revenue - lo) / (hi - lo) * (W - pad * 2);
+  const bx = pad + (base - lo) / (hi - lo) * (W - pad * 2);
   g.strokeStyle = '#b4472f'; g.lineWidth = 1.5;
   g.beginPath(); g.moveTo(bx, 4); g.lineTo(bx, H - 18); g.stroke();
-  const wx = pad + (sweep.best.revenue - lo) / (hi - lo) * (W - pad * 2);
+  const wx = pad + (sweep.bestObj - lo) / (hi - lo) * (W - pad * 2);
   g.strokeStyle = '#1c6f5a'; g.lineWidth = 2;
   g.beginPath(); g.moveTo(wx, 4); g.lineTo(wx, H - 18); g.stroke();
   g.font = '600 10px ui-sans-serif,system-ui'; g.textBaseline = 'alphabetic';
@@ -1011,6 +1197,8 @@ function visionHTML(v) {
   const miss = (v.observations || []).filter(o => !o.match);
   const bad = (v.matched || []).filter(o => (o.confidence ?? 1) < 0.5).length;
   return `
+    ${v.source ? `<div class="srcline"><b>${esc(v.source.label)}</b> &middot; ${esc(v.source.how)}
+      <a href="${esc(v.source.url)}" target="_blank" rel="noopener noreferrer">the scan</a></div>` : ''}
     <details class="reading-wrap"><summary>What StoreVerse saw</summary>
       <div class="reading">${esc(v.reading || '')}</div></details>
     <div class="vrow mt8">

@@ -19,6 +19,12 @@ Reading a store happens in two passes, on two endpoints:
 Splitting them keeps the fine-grained looking away from the schema-filling, and it
 gives the browser something true to put on screen during the wait.
 
+  POST /api/goal          a goal written in plain words in, search parameters out. The
+                          model turns "sell more of this new chip snack" into a target
+                          category and an objective; it never answers the question, which
+                          is the simulator's job. The browser falls back to its own
+                          keyword match when this is not reachable.
+
 Everything else in the app is static: the floor, the scoring and the 1,000-scenario
 search all run in the browser against the exported response surface. If vision is
 unavailable the walkthrough still works end to end on the demo floor.
@@ -137,6 +143,72 @@ Rules for the rest:
 - If you cannot tell a dimension, give a sensible estimate for a store of this type."""
 
 
+# ----------------------------------------------------------------- the goal
+GOAL_PROMPT = """You are reading a merchandising goal written by a shopkeeper, and turning
+it into parameters for a simulator. You are NOT answering the goal.
+
+The goal:
+---
+__GOAL__
+---
+
+The simulator can only act on these categories, because these are the only ones it has
+fitted a response for. This list is closed:
+__CATEGORIES__
+
+The positions it can move things onto:
+__SLOTS__
+
+Return ONLY a JSON object, no prose and no code fence:
+
+{
+  "target": "<one CATEGORY exactly, or null if the goal is about the whole store>",
+  "target_reason": "<max 18 words. If the goal names a product the list has no home for,
+                     say which category stands in for it and that it is a stand-in.>",
+  "objective": "category_revenue" | "store_revenue",
+  "visibility_first": true | false,
+  "avoid_discounts": true | false,
+  "horizon": "<what the goal says about timing, or null>",
+  "restated": "<one sentence, the goal as an instruction to the simulator>",
+  "caveat": "<what the goal asks for that this simulator cannot do, or null>"
+}
+
+Rules:
+- The product named is usually NOT in the list by name. Map it to the nearest trained
+  category and say plainly in target_reason that it is standing in. Never invent a
+  category, and never return a name that is not in the list exactly.
+- "objective" is category_revenue when the goal is about one product or category, and
+  store_revenue when it is about the shop's overall takings.
+- "visibility_first" is true when they want the product noticed, explained, understood or
+  made obvious, rather than only sold.
+- "avoid_discounts" is true only if the goal says not to cut price. This simulator never
+  changes price anyway, so if they ask for a discount, that belongs in "caveat".
+- "caveat" is where honesty lives. Shelf-edge signs, packaging, staff recommendations,
+  sampling and anything about the product's own design are outside what this simulator
+  moves, which is display positions and flyer slots. Say so there."""
+
+
+def goal(text, categories, slots):
+    """Turn a written goal into search parameters. The LLM never answers the question."""
+    if not str(text).strip():
+        raise RuntimeError("no goal was written")
+    tmp = pathlib.Path(tempfile.mkdtemp(prefix="simon-goal-"))
+    try:
+        prompt = (GOAL_PROMPT
+                  .replace("__GOAL__", str(text)[:2000])
+                  .replace("__CATEGORIES__", "\n".join("  - " + c for c in categories))
+                  .replace("__SLOTS__", "\n".join("  - " + s for s in slots)))
+        body = _claude(prompt, [], tmp)
+        m = re.search(r"\{.*\}", body, re.S)
+        if not m:
+            raise RuntimeError("the model did not return goal parameters")
+        out = json.loads(m.group(0))
+        out["parsed_by"] = "model"
+        return out
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def _claude(prompt, paths, cwd):
     """Run the local claude CLI over a prompt plus image paths, and return its text."""
     exe = shutil.which("claude")
@@ -233,7 +305,8 @@ class Handler(SimpleHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_POST(self):
-        routes = {"/api/vision/look": self._look, "/api/vision/map": self._map}
+        routes = {"/api/vision/look": self._look, "/api/vision/map": self._map,
+                  "/api/goal": self._goal}
         fn = routes.get(self.path)
         if not fn:
             return self._json(404, {"error": "no such endpoint"})
@@ -251,6 +324,9 @@ class Handler(SimpleHTTPRequestHandler):
 
     def _map(self, req):
         return mapping(req.get("session"), req.get("categories", []), req.get("archetypes", {}))
+
+    def _goal(self, req):
+        return goal(req.get("text", ""), req.get("categories", []), req.get("slots", []))
 
     def end_headers(self):
         self.send_header("Cache-Control", "no-store")

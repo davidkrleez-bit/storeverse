@@ -179,6 +179,28 @@ photographs does not: it calls a model through the local `claude` CLI, and needs
 `./deploy.sh` pushes the current `web/` to it. Only `web/` goes up, because only `web/`
 is served; the pipeline, the vision server and the model code stay here.
 
+## Goals in plain words
+
+Step 4 takes the goal written the way a shopkeeper would say it - "I have a new product
+collaboration coming in... make it clear what it is, this new chip snack" - and turns it
+into what the search should be making big. A model reads it when `server.py` is running;
+a keyword match reads it otherwise, and the screen says which did.
+
+The model never answers the merchandising question. It only names a target category and
+an objective, and the fitted surface answers the rest. It is also where the honesty sits:
+asked to make a product *understood*, it reports that signage, packaging and sampling are
+outside what this simulator moves.
+
+A goal aimed at one category changes what "best" means, so the search optimises that
+category's revenue and reports what the rest of the shop gave up for it.
+
+## The example store
+
+`web/data/example.json` is Fortuna Supermarket, read from four views of a public
+Matterport scan through the same two vision passes a photo upload uses. Nothing in it was
+hand-written. Four of its fourteen product groups matched a trained category; the rest are
+listed as seen and left off the floor, which is the point.
+
 ## The app
 
 **1 · The space** A 2D plan and a 3D model of the floor, built from the same spec the

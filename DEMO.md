@@ -41,6 +41,10 @@ This takes up to two minutes over two model calls, so run it before you present 
 the result on screen. If it is slow or you are offline, say so and move on: the demo floor
 carries the rest.
 
+If you have no photo to hand, **Use the example store** loads Fortuna Supermarket, read
+from a public scan the same way. Point at the refusals, then at Step 4: the goal box is
+already filled with a real one, and reading it names the category the search will chase.
+
 ### 1:00 — Today (40s)
 
 Screen 2.

@@ -148,6 +148,24 @@ tr.measured td{background:#faf8f5}
  border:1px solid var(--line);border-radius:10px;padding:12px 13px;white-space:pre-wrap;
  max-height:260px;overflow:auto;color:var(--ink2);margin:0}
 
+.srcline{font-size:12px;line-height:1.5;color:var(--ink2);background:#f6f4f0;
+ border:1px solid var(--line);border-radius:9px;padding:9px 11px;margin-top:10px}
+.srcline b{color:var(--ink)}
+.srcline a{color:var(--accent);text-decoration:underline;text-underline-offset:2px}
+
+/* goal */
+textarea#goal{width:100%;font:inherit;font-size:14px;line-height:1.55;padding:11px 12px;
+ border:1px solid var(--line);border-radius:10px;background:#fcfbf9;color:var(--ink);
+ resize:vertical;min-height:72px}
+textarea#goal:focus{outline:2px solid #cfe0d9;outline-offset:1px;border-color:var(--accent)}
+.goalread{margin-top:14px;padding-top:13px;border-top:1px solid #f1efeb}
+.grestate{font-size:14.5px;font-weight:600;line-height:1.5;color:var(--ink);max-width:68ch}
+.chips{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}
+.chipv{font-size:11.5px;font-weight:600;padding:3.5px 9px;border-radius:999px;
+ background:#f0ede8;color:var(--ink2);white-space:nowrap}
+.chipv.on{background:var(--accent-soft);color:var(--accent)}
+.chipv.quiet{background:transparent;border:1px dashed var(--line);color:#8d8a84;font-weight:500}
+
 /* photo read */
 .reading-wrap{margin-top:10px}
 .reading-wrap summary{font-size:12px;letter-spacing:.06em;text-transform:uppercase;
