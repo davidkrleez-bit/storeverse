@@ -756,3 +756,208 @@ function loop(now) {
   camera.lookAt(target);
   renderer.render(scene, camera);
 }
+// ------------------------------------------------------------------- minis
+//
+// Nine floors running at once: the three display positions a category can hold crossed
+// with the three flyer slots. That is every distinct thing that can happen to one
+// category, so the grid is the whole decision rather than a sample of it.
+//
+// One WebGL context, nine scissored viewports. Nine separate renderers would each take a
+// context, and browsers hand out about sixteen before they start evicting the oldest -
+// which is the main canvas. The viewports are measured off the DOM tiles each frame, so
+// the 3D lines up with its label however the page reflows.
+
+let miniR = null, miniHost = null, minis = [], miniRaf = 0, miniPrev = 0;
+
+/** A cheap floor: the same shapes as the big one, no shadows, thinner stock. */
+function miniStore(spec, plan, highlight) {
+  const g = new THREE.Group();
+  const S = spec.size;
+  g.position.set(-S.w / 2, 0, -S.d / 2);
+
+  const slab = box(S.w + 0.6, 0.3, S.d + 0.6, C.slab);
+  slab.position.set(S.w / 2, -0.16, S.d / 2); g.add(slab);
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(S.w, S.d), mat(C.floor, { rough: 0.95 }));
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.set(S.w / 2, 0.001, S.d / 2); g.add(floor);
+
+  const WH = Math.min(3.2, Math.max(2.4, (S.h || 3) * 0.92));
+  for (const [w, x, z, ry] of [[S.w, S.w / 2, S.d, Math.PI], [S.d, 0, S.d / 2, Math.PI / 2],
+                               [S.d, S.w, S.d / 2, -Math.PI / 2]]) {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, WH), mat(C.wall, { rough: 0.96 }));
+    m.position.set(x, WH / 2, z); m.rotation.y = ry; g.add(m);
+  }
+
+  for (const z of spec.zones) {
+    const along = z.w >= z.d;
+    const L = along ? z.w : z.d, D = along ? z.d : z.w;
+    let f, rot = along ? 0 : Math.PI / 2;
+    if (z.kind === 'cooler') {
+      f = cooler(L, Math.max(D, 0.7), 2.0, z);
+      rot = along ? (z.z > S.d / 2 ? 0 : Math.PI) : (z.x > S.w / 2 ? Math.PI / 2 : -Math.PI / 2);
+    } else if (z.kind === 'island') f = island(L, D, z);
+    else if (z.kind === 'wall') {
+      f = gondola(L, Math.max(D, 0.6), 2.25, z, { oneSided: true });
+      rot = along ? (z.z > S.d / 2 ? 0 : Math.PI) : (z.x > S.w / 2 ? Math.PI / 2 : -Math.PI / 2);
+    } else f = gondola(L, Math.max(D, 0.9), 2.05, z);
+    f.position.set(z.x, 0, z.z); f.rotation.y = rot;
+    // The category under test glows, so you can find it across all nine at a glance.
+    if (highlight && z.category === highlight) {
+      const pad = new THREE.Mesh(new THREE.PlaneGeometry(z.w + 1.4, z.d + 1.4),
+        new THREE.MeshBasicMaterial({ color: 0x9fd8bf, transparent: true, opacity: 0.55 }));
+      pad.rotation.x = -Math.PI / 2; pad.position.set(z.x, 0.02, z.z); g.add(pad);
+    }
+    g.add(f);
+  }
+
+  for (const c of spec.checkouts || []) {
+    const b = box(c.w, 0.92, c.d, C.checkout);
+    b.position.set(c.x, 0.46, c.z); g.add(b);
+  }
+
+  // The contested positions this plan uses, and the one holding the category under test.
+  for (const s of spec.slots.filter(x => x.kind === 'display')) {
+    const cat = plan[s.id];
+    if (!cat) continue;
+    const hot = cat === highlight;
+    const stack = box(s.w * 0.88, 0.78, s.d * 0.88, hot ? 0x1c6f5a : C.fixtureBase);
+    stack.position.set(s.x, 0.39, s.z); g.add(stack);
+    if (hot) {
+      const pad = new THREE.Mesh(new THREE.PlaneGeometry(s.w + 1.2, s.d + 1.2),
+        new THREE.MeshBasicMaterial({ color: 0x9fd8bf, transparent: true, opacity: 0.6 }));
+      pad.rotation.x = -Math.PI / 2; pad.position.set(s.x, 0.02, s.z); g.add(pad);
+    }
+  }
+  g.traverse(o => { o.castShadow = false; o.receiveShadow = false; });
+  return g;
+}
+
+/** A tile's own little crowd. Same rules as the big floor, fewer bodies. */
+function miniCrowd(spec, plan, group, n) {
+  const walls = [
+    ...spec.zones.map(z => ({ x: z.x, z: z.z, w: z.w, d: z.d })),
+    ...(spec.checkouts || []).map(c => ({ x: c.x, z: c.z, w: c.w + 0.8, d: c.d })),
+  ];
+  const S = spec.size;
+  const blockedAt = (x, z) => x < 0.5 || z < 0.5 || x > S.w - 0.5 || z > S.d - 0.5
+    || walls.some(b => Math.abs(x - b.x) < b.w / 2 + 0.3 && Math.abs(z - b.z) < b.d / 2 + 0.3);
+  const spot = () => {
+    for (let k = 0; k < 60; k++) {
+      const x = 0.7 + Math.random() * (S.w - 1.4), z = 0.7 + Math.random() * (S.d - 1.4);
+      if (!blockedAt(x, z)) return { x, z };
+    }
+    return { x: S.w / 2, z: 1 };
+  };
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const p = person(i * 3 + 1, { basket: false });
+    p.scale.setScalar(1.15);
+    group.add(p);
+    const s = spot(), t = spot();
+    out.push({ g: p, x: s.x, z: s.z, tx: t.x, tz: t.z, wait: 0, bob: Math.random() * 6 });
+  }
+  return { people: out, blockedAt, spot };
+}
+
+function stepMini(m, dt) {
+  for (const p of m.crowd.people) {
+    if (p.wait > 0) { p.wait -= dt; p.g.position.set(p.x, 0, p.z); continue; }
+    let dx = p.tx - p.x, dz = p.tz - p.z;
+    const dist = Math.hypot(dx, dz);
+    if (dist < 0.4) {
+      p.wait = 0.8 + Math.random() * 2.2;
+      const t = m.crowd.spot(); p.tx = t.x; p.tz = t.z;
+      continue;
+    }
+    const step = 1.0 * dt;
+    dx = dx / dist * step; dz = dz / dist * step;
+    if (!m.crowd.blockedAt(p.x + dx, p.z + dz)) { p.x += dx; p.z += dz; }
+    else if (!m.crowd.blockedAt(p.x + dx, p.z)) p.x += dx;
+    else if (!m.crowd.blockedAt(p.x, p.z + dz)) p.z += dz;
+    else { const t = m.crowd.spot(); p.tx = t.x; p.tz = t.z; }
+    p.bob += dt * 9;
+    p.g.position.set(p.x, Math.abs(Math.sin(p.bob)) * 0.03, p.z);
+    p.g.rotation.y = Math.atan2(dx, dz);
+  }
+}
+
+/**
+ * Mount the grid.
+ *   canvas  one canvas stretched over the whole grid
+ *   host    the element whose .minitile children give each viewport its rectangle
+ *   tiles   [{ plan, highlight }] in reading order
+ */
+export function mountMinis(canvas, host, spec, tiles) {
+  unmountMinis();
+  miniHost = host;
+  miniR = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+  miniR.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
+  miniR.setScissorTest(true);
+
+  const ext = Math.hypot(spec.size.w, spec.size.d);
+  minis = tiles.map(t => {
+    const scene = new THREE.Scene();
+    scene.add(new THREE.HemisphereLight(0xffffff, 0xdcd6cc, 2.5));
+    const key = new THREE.DirectionalLight(0xfff6e8, 1.0); key.position.set(-18, 30, 16);
+    scene.add(key);
+    const fill = new THREE.DirectionalLight(0xffffff, 0.5); fill.position.set(20, 14, -12);
+    scene.add(fill);
+    const root = miniStore(spec, t.plan, t.highlight);
+    scene.add(root);
+    const crowd = miniCrowd(spec, t.plan, root, 6);
+    // Tight enough that the floor fills its tile; the tiles are small and the store
+    // is the whole point of them.
+    const half = ext * 0.40;
+    const cam = new THREE.OrthographicCamera(-half, half, half, -half, 0.5, 600);
+    const dist = Math.max(spec.size.w, spec.size.d) * 2.4 + 20;
+    const th = 0.79, ph = 0.96;
+    cam.position.set(dist * Math.sin(ph) * Math.sin(th), dist * Math.cos(ph),
+                     dist * Math.sin(ph) * Math.cos(th));
+    cam.lookAt(0, 0.9, 0);
+    return { scene, cam, root, crowd, half };
+  });
+  miniPrev = 0;
+  miniLoop();
+}
+
+export function unmountMinis() {
+  cancelAnimationFrame(miniRaf); miniRaf = 0;
+  for (const m of minis) m.scene.traverse(o => { o.geometry?.dispose?.(); });
+  minis = [];
+  if (miniR) { miniR.dispose(); miniR = null; }
+  miniHost = null;
+}
+
+function miniLoop(now) {
+  miniRaf = requestAnimationFrame(miniLoop);
+  if (!miniR || !miniHost || !minis.length) return;
+  const dt = miniPrev && now ? Math.min(0.05, (now - miniPrev) / 1000) : 0.016;
+  if (now) miniPrev = now;
+
+  const hostBox = miniHost.getBoundingClientRect();
+  const w = Math.round(hostBox.width), h = Math.round(hostBox.height);
+  if (!w || !h) return;
+  if (miniR.domElement.width !== Math.round(w * miniR.getPixelRatio())
+      || miniR.domElement.height !== Math.round(h * miniR.getPixelRatio())) {
+    miniR.setSize(w, h, false);
+  }
+  const frames = miniHost.querySelectorAll('.minishot');
+  miniR.setClearColor(0x000000, 0);
+  miniR.clear();
+  frames.forEach((el, i) => {
+    const m = minis[i];
+    if (!m) return;
+    const r = el.getBoundingClientRect();
+    const x = Math.round(r.left - hostBox.left), y = Math.round(hostBox.bottom - r.bottom);
+    const rw = Math.round(r.width), rh = Math.round(r.height);
+    if (rw <= 0 || rh <= 0) return;
+    stepMini(m, dt);
+    const aspect = rw / rh;
+    m.cam.left = -m.half * aspect; m.cam.right = m.half * aspect;
+    m.cam.top = m.half; m.cam.bottom = -m.half;
+    m.cam.updateProjectionMatrix();
+    miniR.setViewport(x, y, rw, rh);
+    miniR.setScissor(x, y, rw, rh);
+    miniR.render(m.scene, m.cam);
+  });
+}

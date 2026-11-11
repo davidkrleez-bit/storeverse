@@ -1,7 +1,7 @@
 // StoreVerse - store simulation.
 // Every number on screen comes from the response surface the model exported, so a figure
 // here traces back to a fitted purchase probability rather than a planning rule of thumb.
-import { mountScene, updateScene } from './scene.js';
+import { mountScene, updateScene, mountMinis, unmountMinis } from './scene.js';
 import { ARCHETYPES, DEFAULT_ARCHETYPE, archetypeCatalog } from './archetypes.js';
 
 const $ = s => document.querySelector(s);
@@ -30,6 +30,7 @@ We're considering giving them our entrance display, using an aisle endcap, or fe
 
 Which option would make the most sense for our store?`;
 let VISION = null;    // last photo read, so the match can stay on screen
+let showBest = false; // whether the 3D floor is showing the winning plan or today's
 
 // ------------------------------------------------------------------ scoring
 /** Resolve a slot assignment into a display level and a flyer level per category. */
@@ -82,51 +83,114 @@ const titleOf = c => (zoneOf(c) || {}).title || c || '—';
 // ------------------------------------------------------------------ views
 const VIEWS = {};
 
+// ------------------------------------------------------------------ step 1
+//
+// One screen: the shop, the question, and the answer. The photos are already here and
+// the question is already written, so the thing a visitor has to do is press one button.
+//
+// Pressing it reads the store, turns the question into search parameters, scores the
+// handful of positions the question actually names, searches the whole floor anyway, and
+// puts the winning layout on the 3D floor with the moves written out in words.
+
+const PHOTOS = [1, 2, 3, 4, 5, 6, 7, 8, 9].map(i => `data/photos/fortuna-${i}.jpg`);
+
+/** Where a position is, said the way you would say it to someone holding a pallet truck. */
+const WHERE = {
+  endcap_front_left: 'the end of the first aisle as you come in, on the left',
+  endcap_front_right: 'the end of the aisle facing the tills, on the right',
+  island_mid: 'the open floor in the middle of the shop, between the aisles',
+  island_rear: 'the open floor at the back, past the last aisle',
+  checklane: 'the stack beside the checkout lanes',
+  cooler_endcap: 'the end of the cooler run nearest the door',
+  window_stack: 'the stack in the window',
+  endcap_mid_left: 'the middle of the left-hand aisle run',
+  endcap_mid_right: 'the middle of the right-hand aisle run',
+  flyer_front_1: 'the lead slot on the front page of the weekly flyer',
+  flyer_front_2: 'the second slot on the front page of the weekly flyer',
+  flyer_in_1: 'an inside page of the weekly flyer',
+  flyer_in_2: 'an inside page of the weekly flyer',
+  flyer_in_3: 'an inside page of the weekly flyer',
+  flyer_in_4: 'an inside page of the weekly flyer',
+};
+
+/** The winning plan as a job list, not a table. */
+function movesHTML(assign) {
+  const moves = STORE.slots
+    .map(s => ({ s, to: assign[s.id] || null, from: STORE.current[s.id] || null }))
+    .filter(m => m.to !== m.from);
+  if (!moves.length) return '<p class="note">The search could not beat the floor as it stands.</p>';
+  const put = moves.filter(m => m.to), clear = moves.filter(m => !m.to);
+  return `
+    <ol class="jobs">${put.map(m => `<li>
+      <b>${esc(titleOf(m.to))}</b> goes on <b>${esc(m.s.label.toLowerCase())}</b>
+      &mdash; ${esc(WHERE[m.s.id] || 'a contested position')}.
+      ${m.from ? `<span class="note">Takes the position off ${esc(titleOf(m.from))}.</span>`
+               : '<span class="note">That position is empty today.</span>'}
+    </li>`).join('')}
+    ${clear.map(m => `<li><b>${esc(titleOf(m.from))}</b> comes off
+      <b>${esc(m.s.label.toLowerCase())}</b> and goes back to its own shelf.</li>`).join('')}
+    </ol>`;
+}
+
 VIEWS.space = () => {
   const s = STORE.size;
+  const g = GOAL;
+  const ready = !!(sweep && g);
   view.innerHTML = `
   <div class="head">
-    <div class="eyebrow">Step 1</div>
-    <h1>The space</h1>
+    <h1>Plan the floor</h1>
     <p class="sub">${esc(STORE.name)}. ${esc(STORE.note)} ${STORE.zones.length} category zones,
-    ${STORE.slots.filter(x => x.kind === 'display').length} contested display
-    positions, ${STORE.slots.filter(x => x.kind === 'mailer').length} flyer slots. Drop in photos to
-    rebuild the floor from a real store, or work from the demo plan.</p>
+    ${STORE.slots.filter(x => x.kind === 'display').length} display positions worth fighting over
+    and ${STORE.slots.filter(x => x.kind === 'mailer').length} flyer slots. Say what you are trying
+    to do and StoreVerse will score every way of doing it.</p>
   </div>
+
   <div class="grid2">
     <div>
       <div class="stage">
         <div class="stagebar">
           <button class="chip on" id="t3d">3D</button>
           <button class="chip" id="t2d">Plan</button>
+          ${ready ? `<span class="chipsep"></span>
+            <button class="chip ${showBest ? '' : 'on'}" id="vToday">Today</button>
+            <button class="chip ${showBest ? 'on' : ''}" id="vBest">Best plan</button>` : ''}
         </div>
         <canvas id="three"></canvas>
         <canvas id="plan" hidden></canvas>
       </div>
-      <p class="hint mt8">Drag to orbit, scroll to zoom. Filled markers are display positions in use.
-      How many shoppers are on the floor comes from the store's modelled weekly visits; where they
-      stop, how long they linger and when a green chip goes up all come from the scored purchase
-      probability of the category in front of them. A plan does not change who walks in, so it
-      changes what they do once inside. Stopping rates are relative to the best zone on this floor,
-      not literal per-visit odds.</p>
+      <p class="hint mt8">Drag to orbit, scroll to zoom. Stacks on the floor are the contested
+      positions in use. How many shoppers there are comes from the store's modelled weekly
+      visits; where they stop and when a green chip goes up come from the scored purchase
+      probability of the category in front of them, relative to the best zone on this floor.</p>
     </div>
+
     <div>
       <div class="card">
-        <h2>Build from photos</h2>
-        <p class="hint">Upload shots of a store. StoreVerse looks first, in plain words, then matches what
-        it saw onto the ${BASE_ZONES.length} categories it was actually trained on &mdash; and says
-        what it had to leave out.</p>
-        <div class="drop" id="drop">
+        <h2>The shop</h2>
+        <p class="hint">Nine views of Fortuna Super. These are already loaded &mdash; drop your own
+        in to read a different store.</p>
+        <div class="shots">${PHOTOS.map((p, i) =>
+          `<button class="shot" data-src="${p}" aria-label="View ${i + 1}">
+             <img src="${p}" alt="Fortuna Super, view ${i + 1}" loading="lazy"></button>`).join('')}</div>
+        <div class="drop small" id="drop">
           <input type="file" id="file" accept="image/*" multiple hidden>
-          <b>Drop photos here</b><br><span>or <u id="browse" style="cursor:pointer">browse</u></span>
+          <span>Drop your own photos, or <u id="browse" style="cursor:pointer">browse</u></span>
         </div>
-        <div class="row mt8">
-          <button class="ghost" id="useexample">Use the example store</button>
-        </div>
-        <p class="hint mt8">No photos to hand? The example is a real shop, read the same way:
-        four views of a public scan of Fortuna Supermarket, through the same two passes.</p>
         <div id="vstat" class="mt8">${VISION ? visionHTML(VISION) : ''}</div>
       </div>
+
+      <div class="card mt">
+        <h2>What are you trying to do?</h2>
+        <p class="hint">Written the way you would say it out loud. StoreVerse turns it into what
+        the search should be making big; the answer comes from the fitted numbers, not from a chat.</p>
+        <textarea id="goal" rows="7" spellcheck="false">${esc(g ? g.text || SAMPLE_GOAL : SAMPLE_GOAL)}</textarea>
+        <div class="row mt8">
+          <button id="planbtn">${ready ? 'Plan it again' : 'Plan the floor'}</button>
+          <button class="ghost" id="samplegoal">Reset the question</button>
+        </div>
+        <div id="goalout">${g ? goalHTML(g) : ''}</div>
+      </div>
+
       <div class="card mt">
         <h2>Floor</h2>
         <table>
@@ -139,26 +203,101 @@ VIEWS.space = () => {
         </table>
       </div>
     </div>
-  </div>`;
-  const ux = $('#useexample');
-  if (ux) ux.onclick = async () => {
-    ux.disabled = true; ux.textContent = 'Loading…';
-    const stat = $('#vstat');
-    try {
-      const spec = await fetch('data/example.json').then(r => r.json());
-      stat.innerHTML = `<div class="note">Reading the example store…</div>`;
-      applySpec(spec);
-    } catch (e) {
-      ux.disabled = false; ux.textContent = 'Use the example store';
-      stat.innerHTML = `<div class="note"><b>Could not load the example.</b> ${esc(e.message)}</div>`;
-    }
-  };
+  </div>
+
+  <div id="answer">${ready ? answerHTML() : ''}</div>`;
+
   mountScene($('#three'), STORE);
-  updateScene(plan, score(plan));
+  updateScene(showBest && sweep ? sweep.best.assign : plan,
+              score(showBest && sweep ? sweep.best.assign : plan));
   $('#t3d').onclick = () => stageMode(true);
   $('#t2d').onclick = () => stageMode(false);
+  $('#samplegoal').onclick = () => { $('#goal').value = SAMPLE_GOAL; };
+  for (const b of view.querySelectorAll('.shot')) {
+    b.onclick = () => { lightbox(b.dataset.src); };
+  }
+  const vt = $('#vToday'), vb = $('#vBest');
+  if (vt) vt.onclick = () => { showBest = false; VIEWS.space(); };
+  if (vb) vb.onclick = () => { showBest = true; VIEWS.space(); };
+  const ap = $('#applybest');
+  if (ap) ap.onclick = () => { plan = { ...sweep.best.assign }; showBest = false; go('scenario'); };
+  if (sweep) { drawHist(); wireGrid(); }
+  if (TRIAL) { startRun(); wireRun(); } else unmountMinis();
+  $('#planbtn').onclick = planItAll;
   wireUpload();
 };
+
+/** One press: read the store if it is not loaded, read the question, score everything. */
+async function planItAll() {
+  const btn = $('#planbtn'), text = $('#goal').value;
+  btn.disabled = true;
+  const say = m => { const a = $('#answer'); if (a) a.innerHTML = `<p class="note mt">${esc(m)}</p>`; };
+
+  if (!VISION) {
+    btn.textContent = 'Reading the shop…';
+    say('Reading nine views of the shop…');
+    try {
+      const spec = await fetch('data/example.json').then(r => r.json());
+      applySpecQuiet(spec);
+    } catch (e) {
+      btn.disabled = false; btn.textContent = 'Plan the floor';
+      say('Could not load the example store: ' + e.message);
+      return;
+    }
+  }
+  btn.textContent = 'Reading the question…';
+  const parsed = await readGoal(text);
+  GOAL = { ...parsed, text };
+  btn.textContent = 'Simulating…';
+  // Let the button text paint before the arithmetic takes the thread.
+  await new Promise(r => setTimeout(r, 30));
+  if (GOAL.target) TRIAL = runTrials(GOAL.target);
+  else TRIAL = null;
+  runSweep();
+  showBest = true;
+  VIEWS.space();
+  const a = $('#answer');
+  if (a) a.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+/** Everything the press produced, in the order a person would want it. */
+function answerHTML() {
+  const g = sweep.goal;
+  const forCat = g && g.target && g.objective === 'category_revenue';
+  const base = forCat ? objectiveOf(baseline) : baseline.revenue;
+  const bv = forCat ? objectiveOf(sweep.best) : sweep.best.revenue;
+  const storeDelta = sweep.best.revenue - baseline.revenue;
+  return `
+  <div class="head mt">
+    <div class="eyebrow">The answer</div>
+    <h1>${forCat ? esc(titleOf(g.target)) + ' on the best floor we found' : 'The best floor we found'}</h1>
+    <p class="sub">${forCat ? `${money(bv)} a week against ${money(base)} today, and the shop as a
+      whole ${storeDelta >= 0 ? `${money(storeDelta)} better off` : `${money(-storeDelta)} worse off`}.`
+      : `${money(bv)} a week against ${money(base)} today.`}
+      The 3D floor above is showing it &mdash; switch back to <b>Today</b> to compare.</p>
+  </div>
+
+  <div class="card">
+    <div class="chead"><h2>What to actually do on Monday</h2>
+      <button class="ghost small" id="applybest">Open this plan in Scenarios</button></div>
+    <p class="hint">Every position that changes, and where it is.</p>
+    ${movesHTML(sweep.best.assign)}
+  </div>
+
+  ${runGridHTML()}
+  ${optionsHTML()}
+  ${sweepHTML()}
+  ${gridHTML()}`;
+}
+
+/** The lightbox: a photo big enough to read the shelf tags. */
+function lightbox(src) {
+  const d = document.createElement('div');
+  d.className = 'lbox';
+  d.innerHTML = `<img src="${src}" alt=""><button class="lclose" aria-label="Close">&times;</button>`;
+  d.onclick = () => d.remove();
+  document.body.appendChild(d);
+}
 
 function stageMode(three) {
   const a = $('#three'), b = $('#plan');
@@ -588,6 +727,279 @@ function optionsHTML() {
   </div>`;
 }
 
+// -------------------------------------------------------------- the nine
+//
+// Three display positions crossed with three flyer slots. For one category that is not a
+// sample of the possibilities, it is all of them: a category holds at most one display
+// and one flyer, so nine cells is the whole decision.
+//
+// Each cell is then played out over a hundred simulated weeks. The weeks are the same
+// weeks for every cell - one set of shopper draws, reused across all nine - so when one
+// plan beats another it is not because it got luckier. That is what makes "won 87 of 100
+// weeks" mean anything, and it is why re-running rerolls the luck for all nine at once.
+
+const TRIALS = 100;
+
+const DISPLAY_STEPS = [
+  { key: 0, label: 'Regular shelf', note: 'no display' },
+  { key: 1, label: 'Secondary display', note: 'mid-floor' },
+  { key: 2, label: 'Entrance endcap', note: 'prime' },
+];
+const FLYER_STEPS = [
+  { key: 0, label: 'No flyer', note: '' },
+  { key: 1, label: 'Flyer inside page', note: '' },
+  { key: 2, label: 'Flyer front page', note: '' },
+];
+
+/** The nine plans, in reading order: flyer down the rows, display across. */
+function ninePlans(target) {
+  const slotAt = (kind, level) => STORE.slots.find(s => s.kind === kind && s.level === level);
+  const out = [];
+  for (const f of FLYER_STEPS) {
+    for (const dsp of DISPLAY_STEPS) {
+      const p = { ...STORE.current };
+      for (const id of Object.keys(p)) if (p[id] === target) p[id] = null;
+      const ds = dsp.key ? slotAt('display', dsp.key) : null;
+      const ms = f.key ? slotAt('mailer', f.key) : null;
+      if (ds) p[ds.id] = target;
+      if (ms) p[ms.id] = target;
+      out.push({ plan: p, display: dsp, flyer: f, highlight: target,
+                 reachable: (!dsp.key || !!ds) && (!f.key || !!ms) });
+    }
+  }
+  return out;
+}
+
+/**
+ * A hundred weeks of trade for each of the nine.
+ *
+ * Weekly units for a category are a count of successes over the week's visits, so the
+ * draw is binomial and the normal approximation is close enough at these counts. The same
+ * standard normal is used for a given category in a given week across all nine plans,
+ * which pairs the comparison and strips out the luck that is common to all of them.
+ */
+function runTrials(target, seedBase) {
+  const nine = ninePlans(target);
+  const scored = nine.map(n => score(n.plan));
+  const visits = STORE.visits_per_week;
+  const nCat = STORE.zones.length;
+
+  let seed = (seedBase ?? 20261111) >>> 0;
+  const rnd = () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296;
+  let spare = null;
+  const gauss = () => {                       // Box-Muller, one spare kept
+    if (spare !== null) { const v = spare; spare = null; return v; }
+    let u = 0, v = 0;
+    while (u === 0) u = rnd();
+    while (v === 0) v = rnd();
+    const r = Math.sqrt(-2 * Math.log(u));
+    spare = r * Math.sin(2 * Math.PI * v);
+    return r * Math.cos(2 * Math.PI * v);
+  };
+
+  const weeks = [];
+  for (let w = 0; w < TRIALS; w++) {
+    const z = new Array(nCat);
+    for (let i = 0; i < nCat; i++) z[i] = gauss();   // this week's luck, shared by all nine
+    const row = scored.map(sc => {
+      let store = 0, tgt = 0;
+      sc.rows.forEach((r, i) => {
+        const mean = r.p * visits;
+        const units = Math.max(0, mean + z[i] * Math.sqrt(visits * r.p * (1 - r.p)));
+        const rev = units * r.price;
+        store += rev;
+        if (r.category === target) tgt = rev;
+      });
+      return { store, target: tgt };
+    });
+    weeks.push(row);
+  }
+
+  const cells = nine.map((n, i) => {
+    const t = weeks.map(w => w[i].target).sort((a, b) => a - b);
+    const s = weeks.map(w => w[i].store);
+    return {
+      ...n,
+      mean: t.reduce((a, b) => a + b, 0) / TRIALS,
+      lo: t[Math.floor(TRIALS * 0.1)], hi: t[Math.floor(TRIALS * 0.9)],
+      store: s.reduce((a, b) => a + b, 0) / TRIALS,
+      wins: 0,
+      expected: objectiveOfRow(scored[i], target),
+    };
+  });
+  for (const w of weeks) {
+    let bi = 0;
+    for (let i = 1; i < w.length; i++) if (w[i].target > w[bi].target) bi = i;
+    cells[bi].wins++;
+  }
+  return { cells, weeks, target, trials: TRIALS, seed: seedBase ?? 20261111 };
+}
+
+const objectiveOfRow = (sc, target) => {
+  const r = sc.rows.find(x => x.category === target);
+  return r ? r.revenue : 0;
+};
+
+// ---------------------------------------------------------------- the run
+//
+// The nine floors on screen at once, with shoppers walking all of them, while a hundred
+// weeks play out underneath. The weeks are revealed one at a time rather than all at
+// once: the lead changes hands early and settles late, which is the honest shape of the
+// thing and the part a table cannot show.
+
+let TRIAL = null;          // the last run
+let trialShown = 0;        // how many of the hundred weeks have been revealed
+let trialTimer = 0;
+
+function runGridHTML() {
+  if (!TRIAL) return '';
+  const t = TRIAL;
+  const label = titleOf(t.target);
+  return `
+  <div class="card mt">
+    <div class="chead"><h2>Nine plans, a hundred weeks each</h2>
+      <button class="ghost small" id="reroll">Reroll the shoppers' luck</button></div>
+    <p class="hint">Every place ${esc(label)} can go: three display positions across, three
+    flyer slots down. All nine are played out over the same hundred simulated weeks &mdash; the
+    same shoppers, the same visits &mdash; so a plan that wins did not simply get luckier.</p>
+
+    <div class="runwrap" id="runwrap">
+      <canvas id="miniCanvas"></canvas>
+      <div class="minigrid" id="minigrid">
+        <div></div>
+        ${DISPLAY_STEPS.map(d => `<div class="mcolhead">${esc(d.label)}</div>`).join('')}
+        ${FLYER_STEPS.map((f, r) => `
+          <div class="mrowhead">${esc(f.label)}</div>
+          ${DISPLAY_STEPS.map((d, c) => {
+            const i = r * 3 + c;
+            return `<div class="minitile" data-i="${i}">
+              <div class="minishot"></div>
+              <div class="minifoot">
+                <div class="mlab"><b>${esc(d.label)}</b><span>${esc(f.label)}</span></div>
+                <div class="mval" data-val="${i}">&mdash;</div>
+              </div>
+              <div class="mcrown" data-crown="${i}"></div>
+            </div>`;
+          }).join('')}`).join('')}
+      </div>
+    </div>
+
+    <div class="runbar">
+      <div class="runprog"><span id="runfill"></span></div>
+      <div class="runcount" id="runcount">week 0 of ${t.trials}</div>
+    </div>
+    <div id="runverdict"></div>
+  </div>`;
+}
+
+/** Paint the tiles for the first `n` weeks: running mean, leader, crown. */
+function paintTrial(n) {
+  if (!TRIAL) return;
+  const t = TRIAL, k = Math.max(1, n);
+  const means = t.cells.map((_, i) => {
+    let s = 0;
+    for (let w = 0; w < k; w++) s += t.weeks[w][i].target;
+    return s / k;
+  });
+  const wins = t.cells.map((_, i) => {
+    let c = 0;
+    for (let w = 0; w < k; w++) {
+      let bi = 0;
+      for (let j = 1; j < 9; j++) if (t.weeks[w][j].target > t.weeks[w][bi].target) bi = j;
+      if (bi === i) c++;
+    }
+    return c;
+  });
+  const base = means[0];                                   // regular shelf, no flyer
+  let lead = 0;
+  for (let i = 1; i < means.length; i++) if (means[i] > means[lead]) lead = i;
+
+  for (let i = 0; i < 9; i++) {
+    const v = document.querySelector(`[data-val="${i}"]`);
+    if (v) {
+      const up = base > 0 ? (means[i] - base) / base * 100 : 0;
+      v.innerHTML = `<b>${money(means[i])}</b>${i === 0 ? ''
+        : `<span class="${up >= 0 ? 'up' : 'down'}">${up >= 0 ? '+' : ''}${up.toFixed(0)}%</span>`}`;
+    }
+    const tile = document.querySelector(`.minitile[data-i="${i}"]`);
+    if (tile) tile.classList.toggle('lead', i === lead);
+    const cr = document.querySelector(`[data-crown="${i}"]`);
+    if (cr) cr.textContent = i === lead ? (n >= t.trials ? 'BEST' : 'leading') : '';
+  }
+  const fill = $('#runfill');
+  if (fill) fill.style.width = (n / t.trials * 100).toFixed(1) + '%';
+  const cnt = $('#runcount');
+  if (cnt) cnt.textContent = n >= t.trials ? `${t.trials} weeks simulated`
+    : `week ${n} of ${t.trials}`;
+
+  if (n >= t.trials) {
+    const vd = $('#runverdict');
+    if (vd) vd.innerHTML = verdictHTML(means, wins, lead, base);
+  }
+}
+
+function verdictHTML(means, wins, lead, base) {
+  const t = TRIAL, c = t.cells[lead], label = titleOf(t.target);
+  const second = means.map((m, i) => ({ m, i })).filter(x => x.i !== lead)
+    .reduce((a, b) => (b.m > a.m ? b : a));
+  const up = base > 0 ? (means[lead] - base) / base * 100 : 0;
+  // The weeks are paired - every plan meets the same shoppers - so a plan with the higher
+  // mean wins nearly every one of them. That makes the win count a statement about the
+  // ranking, not about how far apart the two are, and two plans can be a hair apart and
+  // still split 100-0. The gap between the means is what says whether it is worth caring.
+  const gap = means[lead] > 0 ? (means[lead] - second.m) / means[lead] * 100 : 0;
+  const tooClose = gap < 3;
+  const storeDelta = c.store - t.cells[0].store;
+  return `
+    <div class="lead mt">
+      <b>${esc(c.display.label)}${c.flyer.key ? ' and the ' + esc(c.flyer.label.toLowerCase()) : ', no flyer'}
+      &mdash; ${money(means[lead])} a week for ${esc(label)}, up ${up.toFixed(0)}%</b>
+      <span>It came first in <b>${wins[lead]} of the ${t.trials} weeks</b>, which are the
+      same hundred weeks every plan was given.
+      ${tooClose
+        ? `But ${esc(t.cells[second.i].display.label.toLowerCase())}${t.cells[second.i].flyer.key
+            ? ' with the ' + esc(t.cells[second.i].flyer.label.toLowerCase()) : ''} comes within
+           ${gap.toFixed(1)}% of it &mdash; closer than this model can honestly separate. Treat
+           them as joint winners and pick on whichever is easier to staff.`
+        : `The next best is ${gap.toFixed(0)}% behind, which is a margin worth acting on.`}
+      The rest of the shop ${storeDelta >= 0 ? `gains ${money(storeDelta)}`
+        : `gives up ${money(-storeDelta)}`} a week on this plan.</span>
+    </div>
+    <p class="note mt8">Weekly units are a count over the week's visits, so each simulated
+    week draws its own. Prices and footfall are held still; the only thing moving is where
+    ${esc(label)} sits and which shoppers happened to come in. What these hundred weeks do
+    not cover is whether the fitted response is right in the first place &mdash; that is what
+    <a href="#model">Model check</a> is for.</p>`;
+}
+
+/** Mount the 3D and start the race. */
+function startRun() {
+  if (!TRIAL) return;
+  const host = $('#minigrid'), cv = $('#miniCanvas');
+  if (!host || !cv) return;
+  mountMinis(cv, host, STORE, TRIAL.cells.map(c => ({ plan: c.plan, highlight: TRIAL.target })));
+  clearInterval(trialTimer);
+  trialShown = 0;
+  paintTrial(1);
+  // ~4.5 seconds for a hundred weeks: long enough to watch the lead settle.
+  trialTimer = setInterval(() => {
+    trialShown += 2;
+    if (trialShown >= TRIAL.trials) {
+      trialShown = TRIAL.trials;
+      clearInterval(trialTimer); trialTimer = 0;
+    }
+    paintTrial(trialShown);
+  }, 90);
+}
+
+function wireRun() {
+  const r = $('#reroll');
+  if (r) r.onclick = () => {
+    TRIAL = runTrials(TRIAL.target, (TRIAL.seed + 7919) >>> 0);
+    startRun();
+  };
+}
+
 // ----------------------------------------------------------------- the grid
 //
 // A thousand plans as a thousand cells, best in the top-left, worst in the bottom-right.
@@ -751,66 +1163,6 @@ function wireGrid() {
   };
 }
 
-VIEWS.optimise = () => {
-  const g = GOAL;
-  const forCat = g && g.target && g.objective === 'category_revenue';
-  view.innerHTML = `
-  <div class="head">
-    <div class="eyebrow">Step 4</div>
-    <h1>Let the model search</h1>
-    <p class="sub">StoreVerse builds a thousand complete plans, scores each one against the same
-    shoppers, and keeps the best. Every plan respects the real constraint: a category can hold
-    one display position and one flyer slot, and there are only
-    ${STORE.slots.filter(s => s.kind === 'display').length} and
-    ${STORE.slots.filter(s => s.kind === 'mailer').length} of them.</p>
-  </div>
-
-  <div class="card">
-    <div class="chead"><h2>What are you trying to do?</h2></div>
-    <p class="hint">Write it the way you would say it out loud. StoreVerse turns it into what the
-    search should be making big &mdash; it does not answer the question, because the answer comes
-    from the fitted numbers and not from a chat.</p>
-    <textarea id="goal" rows="3" spellcheck="false">${esc(g ? g.text || SAMPLE_GOAL : SAMPLE_GOAL)}</textarea>
-    <div class="row mt8">
-      <button id="readgoal">Read this goal</button>
-      <button class="ghost" id="samplegoal">Reset to the example</button>
-      ${g ? '<button class="ghost" id="cleargoal">Drop it, plan for the whole store</button>' : ''}
-    </div>
-    <div id="goalout">${goalHTML(g)}</div>
-  </div>
-
-  <div class="card mt">
-    <div class="chead"><h2>Or search the whole floor</h2></div>
-    <p class="hint">A thousand complete plans, every category free to move at once, scored
-    against the same shoppers.${forCat ? ` Kept by what it does for ${esc(titleOf(g.target))}.` : ''}</p>
-  <div class="row">
-    <button id="run">${forCat ? `Search for ${esc(titleOf(g.target))}` : 'Run 1,000 scenarios'}</button>
-    <button class="ghost" id="apply" ${sweep ? '' : 'disabled'}>Apply the winner</button>
-  </div>
-  ${optionsHTML()}
-  <div id="out" class="mt8">${sweep ? sweepHTML() : '<p class="note">Not run yet.</p>'}</div>
-  </div>
-  ${sweep ? gridHTML() : ''}`;
-
-  $('#run').onclick = runSweep;
-  $('#samplegoal').onclick = () => { $('#goal').value = SAMPLE_GOAL; };
-  const cg = $('#cleargoal');
-  if (cg) cg.onclick = () => { GOAL = null; sweep = null; VIEWS.optimise(); };
-  $('#readgoal').onclick = async () => {
-    const btn = $('#readgoal'), text = $('#goal').value;
-    btn.disabled = true; btn.textContent = 'Reading…';
-    $('#goalout').innerHTML = '<p class="note mt8">Turning that into search parameters…</p>';
-    const parsed = await readGoal(text);
-    GOAL = { ...parsed, text };
-    sweep = null;                     // a new goal means the old search answered a different question
-    VIEWS.optimise();
-  };
-  const ap = $('#apply');
-  if (ap && sweep) ap.onclick = () => { plan = { ...sweep.best.assign }; go('scenario'); };
-  // The canvas is new every time this view is rebuilt, so it has to be redrawn here
-  // rather than only on navigation, or the run leaves an empty box behind.
-  if (sweep) { drawHist(); wireGrid(); }
-};
 
 /** Sample complete plans at random, keeping slot scarcity and one-slot-per-category honest. */
 function randomPlan(rnd) {
@@ -846,7 +1198,7 @@ function runSweep() {
     running.push(bestObj);
   }
   sweep = { N, results, running, plans, levels: lvls, best, bestObj, goal: GOAL };
-  VIEWS.optimise();
+  // Painting is the caller's job: this runs mid-flow and the view is rebuilt once at the end.
 }
 
 function sweepHTML() {
@@ -1439,7 +1791,7 @@ const archetypeOf = () => ARCHETYPES[STORE.archetype] || ARCHETYPES[DEFAULT_ARCH
  * And the contested positions come from the archetype, not from the photo, so the
  * levers stay the ones the model was fitted on.
  */
-function applySpec(spec) {
+function applySpec(spec, quiet = false) {
   const arch = ARCHETYPES[spec.store_type] || ARCHETYPES[DEFAULT_ARCHETYPE];
 
   // Floor. The archetype sets the shape, the photo may resize it within reason.
@@ -1481,7 +1833,8 @@ function applySpec(spec) {
   STORE.slots = arch.slots.map(s => (s.kind === 'display' ? sx(s) : { ...s }));
   STORE.visits_per_week = Number.isFinite(spec.visits_per_week) && spec.visits_per_week > 0
     ? spec.visits_per_week : arch.visits_per_week;
-  STORE.note = arch.note;
+  // A spec that describes itself beats the archetype's stock description.
+  STORE.note = (typeof spec.summary === 'string' && spec.summary.trim()) ? spec.summary : arch.note;
   if (spec.name) STORE.name = spec.name;
   if (spec.palette) STORE.palette = { ...STORE.palette, ...spec.palette };
   if (Array.isArray(spec.posters) && spec.posters.length) {
@@ -1500,8 +1853,12 @@ function applySpec(spec) {
   baseline = score(STORE.current);
   sweep = null;
   railFoot();
+  if (quiet) return;
   if (location.hash !== '#space') go('space'); else render();
 }
+
+/** Fold a spec in without repainting: the caller is mid-flow and will paint when done. */
+function applySpecQuiet(spec) { applySpec(spec, true); }
 
 /** What the photo gave us, including what it refused to match. */
 function visionHTML(v) {
@@ -1526,6 +1883,8 @@ function visionHTML(v) {
       product groups matched. The floor below is real but partial, and anything it cannot score
       it has left off rather than guessed at. Widening the trained categories, not the photo, is
       what fixes this.</div>` : ''}
+    <details class="fold vfold"><summary>What it matched, and what it left out
+      (${(v.matched || []).length} of ${(v.observations || []).length} product groups)</summary>
     <h3 class="vh">Matched to trained categories</h3>
     ${(v.matched || []).length ? `<ul class="obs">${v.matched.map(o => `
       <li><span class="ok">&#10003;</span>
@@ -1538,6 +1897,7 @@ function visionHTML(v) {
         <div><b>${esc(o.seen || '')}</b>
         <span class="note">${esc(o.reason || 'no trained category')}</span></div></li>`).join('')}
     </ul>` : ''}
+    </details>
     <p class="note mt8">Excluded groups are left off the floor rather than forced onto the nearest
     category, because a wrong match would go on to be scored as if it were real.
     ${bad ? `${bad} match${bad === 1 ? '' : 'es'} below 50% confidence &mdash; worth a look.` : ''}</p>`;
@@ -1550,11 +1910,13 @@ function go(v) {
 
 function render() {
   const v = (location.hash || '#space').slice(1);
+  // The nine only exist on step 1; leaving it should hand back the WebGL context and
+  // stop the loop rather than leave it spinning against a detached grid.
+  if (v !== 'space') { clearInterval(trialTimer); trialTimer = 0; unmountMinis(); }
   const fn = VIEWS[v] || VIEWS.space;
   for (const a of document.querySelectorAll('#nav a')) a.classList.toggle('on', a.dataset.v === v);
   fn();
   view.focus();
-  if (v === 'optimise' && sweep) drawHist();
 }
 
 async function boot() {
@@ -1571,7 +1933,7 @@ async function boot() {
   baseline = score(STORE.current);
   railFoot();
   addEventListener('hashchange', render);
-  addEventListener('resize', () => { if (location.hash === '#optimise' && sweep) drawHist(); });
+  addEventListener('resize', () => { if (location.hash === '#space' && sweep) drawHist(); });
   render();
 }
 

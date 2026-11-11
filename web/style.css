@@ -91,7 +91,8 @@ button:disabled{opacity:.5;cursor:default}
 /* sweep */
 #hist{display:block;width:100%;height:150px}
 .lead{border-left:3px solid var(--accent);padding-left:12px;margin:14px 0}
-.lead b{display:block;font-size:14px}
+.lead>b{display:block;font-size:14px}
+.lead span b{font-weight:700}
 .lead span{font-size:12.5px;color:var(--ink2)}
 .drop{border:1.5px dashed #d6d2ca;border-radius:var(--r);padding:20px;text-align:center;
  color:var(--ink2);font-size:13.5px;background:#fcfbf9}
@@ -172,6 +173,62 @@ details.fold>summary::-webkit-details-marker{display:none}
 details.fold>summary::before{content:"▸ ";color:var(--ink2);font-size:11px}
 details.fold[open]>summary::before{content:"▾ "}
 details.fold>summary+table,details.fold>table{margin-top:12px}
+
+/* photo strip */
+.shots{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-bottom:11px}
+.shot{padding:0;border:1px solid var(--line);border-radius:7px;overflow:hidden;background:#f2efea;
+ cursor:zoom-in;aspect-ratio:3/2;display:block}
+.shot img{width:100%;height:100%;object-fit:cover;display:block}
+.shot:hover{border-color:var(--accent)}
+.drop.small{padding:10px;font-size:12.5px}
+.lbox{position:fixed;inset:0;background:rgba(12,11,10,.86);z-index:50;display:grid;
+ place-items:center;padding:28px;cursor:zoom-out}
+.lbox img{max-width:100%;max-height:100%;border-radius:8px;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.lclose{position:absolute;top:16px;right:18px;background:rgba(255,255,255,.14);border:0;
+ color:#fff;font-size:26px;line-height:1;padding:4px 12px;border-radius:8px;cursor:pointer}
+.chipsep{width:1px;height:18px;background:var(--line);margin:0 2px;align-self:center}
+/* the job list */
+ol.jobs{margin:0;padding-left:20px;font-size:14px;line-height:1.6}
+ol.jobs li{padding:5px 0;border-bottom:1px solid #f4f2ee}
+ol.jobs li:last-child{border-bottom:0}
+ol.jobs .note{display:block;margin-top:1px}
+
+details.vfold{margin-top:13px;padding-top:11px;border-top:1px solid #f1efeb}
+details.vfold>summary{font-size:12px;letter-spacing:.06em;text-transform:uppercase;
+ font-weight:650;color:var(--ink2)}
+
+/* the nine */
+.runwrap{position:relative;margin:12px 0 6px}
+#miniCanvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1}
+.minigrid{position:relative;z-index:2;display:grid;
+ grid-template-columns:86px repeat(3,1fr);gap:8px;align-items:stretch}
+.mcolhead{font-size:12px;font-weight:650;color:var(--ink2);padding:0 2px 2px}
+.mrowhead{font-size:12px;font-weight:650;color:var(--ink2);display:flex;align-items:center;
+ text-align:right;justify-content:flex-end;padding-right:4px;line-height:1.3}
+.minitile{position:relative;border:1px solid var(--line);border-radius:10px;overflow:hidden;
+ background:transparent;transition:border-color .15s,box-shadow .15s}
+.minitile.lead{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+.minishot{height:124px;background:transparent}
+.minifoot{display:flex;align-items:center;gap:8px;padding:7px 9px;border-top:1px solid var(--line);
+ background:rgba(255,255,255,.93);backdrop-filter:blur(3px)}
+.mlab{min-width:0;line-height:1.25}
+.mlab b{display:block;font-size:12px;font-weight:620}
+.mlab span{font-size:11px;color:var(--ink2)}
+.mval{margin-left:auto;text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.mval b{display:block;font-size:13.5px;font-weight:660}
+.mval span{font-size:11px;font-weight:650}
+.mcrown{position:absolute;top:7px;right:7px;font-size:10px;font-weight:700;letter-spacing:.07em;
+ text-transform:uppercase;color:#fff;background:var(--accent);border-radius:999px;padding:2px 8px;
+ z-index:3}
+.mcrown:empty{display:none}
+.minitile:not(.lead) .mcrown{background:var(--ink2)}
+.runbar{display:flex;align-items:center;gap:11px;margin-top:10px}
+.runprog{flex:1;height:5px;border-radius:3px;background:#eeebe6;overflow:hidden}
+.runprog span{display:block;height:100%;width:0;background:var(--accent);
+ transition:width .09s linear}
+.runcount{font-size:12px;color:var(--ink2);font-variant-numeric:tabular-nums;white-space:nowrap}
+@media(max-width:820px){.minigrid{grid-template-columns:60px repeat(3,1fr)}
+ .minishot{height:96px}}
 
 /* plan grid */
 svg.grid{max-width:680px;margin:10px 0 4px}

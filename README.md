@@ -209,6 +209,23 @@ the standard neighbourhood floorplan, so every trained category is on the floor 
 contested positions sit where they were defined. It is labelled a demo layout on screen,
 because a photo upload reads a store the other way round and usually matches fewer.
 
+## The nine
+
+For one category the decision is small and exactly enumerable: three display positions
+crossed with three flyer slots. A category holds at most one of each, so nine cells is
+the whole thing rather than a sample of it, and every cell runs on screen with shoppers
+walking it.
+
+Each cell is then played out over a hundred simulated weeks. Weekly units for a category
+are a count over the week's visits, so each week draws its own, and the same draws are
+reused across all nine - the same shoppers, the same visits - which pairs the comparison
+and strips out the luck common to all of them. Re-rolling rerolls it for all nine at once.
+
+Because the weeks are paired, a plan with the higher mean wins nearly every one of them,
+so the win count states the ranking rather than the size of the gap. The gap between the
+means is reported separately, and when the top two are within 3% the page says they are
+closer than the model can honestly separate.
+
 ## The thousand plans
 
 The search is a random sweep, not a solver. One pass builds 1,000 complete plans from a
