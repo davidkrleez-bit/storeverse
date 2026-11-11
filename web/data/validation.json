@@ -611,19 +611,31 @@
   "engines": {
    "claude": {
     "estimate": {
-     "secondary_display": 1.56,
-     "front_endcap": 2.34,
-     "flyer_interior": 1.35,
-     "flyer_front": 1.77
+     "secondary_display": 1.58,
+     "front_endcap": 2.4,
+     "flyer_interior": 1.36,
+     "flyer_front": 1.82
     },
     "spread": {
-     "secondary_display": 0.20000000000000018,
-     "front_endcap": 0.19999999999999973,
+     "secondary_display": 0.10000000000000009,
+     "front_endcap": 0.20000000000000018,
      "flyer_interior": 0.09999999999999987,
      "flyer_front": 0.19999999999999996
     },
     "draws": 5,
     "raw": [
+     {
+      "secondary_display": 1.6,
+      "front_endcap": 2.5,
+      "flyer_interior": 1.4,
+      "flyer_front": 1.9
+     },
+     {
+      "secondary_display": 1.6,
+      "front_endcap": 2.4,
+      "flyer_interior": 1.35,
+      "flyer_front": 1.8
+     },
      {
       "secondary_display": 1.6,
       "front_endcap": 2.4,
@@ -632,44 +644,267 @@
      },
      {
       "secondary_display": 1.6,
+      "front_endcap": 2.4,
+      "flyer_interior": 1.3,
+      "flyer_front": 1.7
+     },
+     {
+      "secondary_display": 1.5,
       "front_endcap": 2.3,
       "flyer_interior": 1.35,
-      "flyer_front": 1.75
-     },
-     {
-      "secondary_display": 1.6,
-      "front_endcap": 2.4,
-      "flyer_interior": 1.3,
-      "flyer_front": 1.7
-     },
-     {
-      "secondary_display": 1.4,
-      "front_endcap": 2.2,
-      "flyer_interior": 1.3,
-      "flyer_front": 1.7
-     },
-     {
-      "secondary_display": 1.6,
-      "front_endcap": 2.4,
-      "flyer_interior": 1.4,
       "flyer_front": 1.8
      }
     ],
     "label": "Claude",
     "note": "a general-purpose LLM asked to estimate",
-    "lift_mae": 0.38339673796824947,
+    "lift_mae": 0.4133967379682495,
     "in_range": {
      "secondary_display": false,
      "front_endcap": false,
      "flyer_interior": true,
      "flyer_front": true
     },
-    "in_range_count": 2
+    "in_range_count": 2,
+    "kind": "LLM"
+   },
+   "jev": {
+    "estimate": {
+     "secondary_display": 1.49,
+     "front_endcap": 2.58,
+     "flyer_interior": 1.2,
+     "flyer_front": 1.6
+    },
+    "spread": {
+     "secondary_display": 0.34999999999999987,
+     "front_endcap": 0.7999999999999998,
+     "flyer_interior": 0.0,
+     "flyer_front": 0.19999999999999996
+    },
+    "draws": 5,
+    "raw": [
+     {
+      "secondary_display": 1.35,
+      "front_endcap": 2.3,
+      "flyer_interior": 1.2,
+      "flyer_front": 1.6
+     },
+     {
+      "secondary_display": 1.45,
+      "front_endcap": 2.4,
+      "flyer_interior": 1.2,
+      "flyer_front": 1.65
+     },
+     {
+      "secondary_display": 1.35,
+      "front_endcap": 2.2,
+      "flyer_interior": 1.2,
+      "flyer_front": 1.55
+     },
+     {
+      "secondary_display": 1.7,
+      "front_endcap": 3.0,
+      "flyer_interior": 1.2,
+      "flyer_front": 1.5
+     },
+     {
+      "secondary_display": 1.6,
+      "front_endcap": 3.0,
+      "flyer_interior": 1.2,
+      "flyer_front": 1.7
+     }
+    ],
+    "label": "jev-router",
+    "note": "TypeSafe's decision model, used as-is",
+    "model_id": "typesafe/jev-router",
+    "lift_mae": 0.48102254709927217,
+    "in_range": {
+     "secondary_display": false,
+     "front_endcap": false,
+     "flyer_interior": false,
+     "flyer_front": true
+    },
+    "in_range_count": 1,
+    "kind": "decision model"
+   },
+   "gpt": {
+    "estimate": {
+     "secondary_display": 1.35,
+     "front_endcap": 1.6400000000000001,
+     "flyer_interior": 1.39,
+     "flyer_front": 1.79
+    },
+    "spread": {
+     "secondary_display": 0.09999999999999987,
+     "front_endcap": 0.30000000000000004,
+     "flyer_interior": 0.30000000000000004,
+     "flyer_front": 0.8000000000000003
+    },
+    "draws": 5,
+    "raw": [
+     {
+      "secondary_display": 1.35,
+      "front_endcap": 1.6,
+      "flyer_interior": 1.45,
+      "flyer_front": 1.85
+     },
+     {
+      "secondary_display": 1.4,
+      "front_endcap": 1.7,
+      "flyer_interior": 1.2,
+      "flyer_front": 1.4
+     },
+     {
+      "secondary_display": 1.3,
+      "front_endcap": 1.6,
+      "flyer_interior": 1.4,
+      "flyer_front": 1.7
+     },
+     {
+      "secondary_display": 1.4,
+      "front_endcap": 1.8,
+      "flyer_interior": 1.5,
+      "flyer_front": 2.2
+     },
+     {
+      "secondary_display": 1.3,
+      "front_endcap": 1.5,
+      "flyer_interior": 1.4,
+      "flyer_front": 1.8
+     }
+    ],
+    "label": "gpt-5.6-luna-pro",
+    "note": "a general-purpose LLM asked to estimate",
+    "model_id": "openai/gpt-5.6-luna-pro",
+    "lift_mae": 0.1508967379682496,
+    "in_range": {
+     "secondary_display": true,
+     "front_endcap": false,
+     "flyer_interior": true,
+     "flyer_front": true
+    },
+    "in_range_count": 3,
+    "kind": "LLM"
+   },
+   "gemini": {
+    "estimate": {
+     "secondary_display": 1.8,
+     "front_endcap": 3.8,
+     "flyer_interior": 1.8399999999999999,
+     "flyer_front": 3.5
+    },
+    "spread": {
+     "secondary_display": 0.0,
+     "front_endcap": 0.5,
+     "flyer_interior": 1.1,
+     "flyer_front": 2.8
+    },
+    "draws": 5,
+    "raw": [
+     {
+      "secondary_display": 1.8,
+      "front_endcap": 3.5,
+      "flyer_interior": 1.4,
+      "flyer_front": 2.2
+     },
+     {
+      "secondary_display": 1.8,
+      "front_endcap": 4.0,
+      "flyer_interior": 2.5,
+      "flyer_front": 5.0
+     },
+     {
+      "secondary_display": 1.8,
+      "front_endcap": 3.5,
+      "flyer_interior": 1.4,
+      "flyer_front": 2.8
+     },
+     {
+      "secondary_display": 1.8,
+      "front_endcap": 4.0,
+      "flyer_interior": 1.4,
+      "flyer_front": 2.5
+     },
+     {
+      "secondary_display": 1.8,
+      "front_endcap": 4.0,
+      "flyer_interior": 2.5,
+      "flyer_front": 5.0
+     }
+    ],
+    "label": "gemini-2.5-pro",
+    "note": "a general-purpose LLM asked to estimate",
+    "model_id": "google/gemini-2.5-pro",
+    "lift_mae": 1.2374454147307943,
+    "in_range": {
+     "secondary_display": false,
+     "front_endcap": false,
+     "flyer_interior": true,
+     "flyer_front": false
+    },
+    "in_range_count": 1,
+    "kind": "LLM"
+   },
+   "llama": {
+    "estimate": {
+     "secondary_display": 1.56,
+     "front_endcap": 2.5,
+     "flyer_interior": 1.72,
+     "flyer_front": 3.12
+    },
+    "spread": {
+     "secondary_display": 0.30000000000000004,
+     "front_endcap": 0.0,
+     "flyer_interior": 0.40000000000000013,
+     "flyer_front": 0.40000000000000036
+    },
+    "draws": 5,
+    "raw": [
+     {
+      "secondary_display": 1.5,
+      "front_endcap": 2.5,
+      "flyer_interior": 1.8,
+      "flyer_front": 3.2
+     },
+     {
+      "secondary_display": 1.5,
+      "front_endcap": 2.5,
+      "flyer_interior": 1.8,
+      "flyer_front": 3.2
+     },
+     {
+      "secondary_display": 1.8,
+      "front_endcap": 2.5,
+      "flyer_interior": 1.4,
+      "flyer_front": 2.8
+     },
+     {
+      "secondary_display": 1.5,
+      "front_endcap": 2.5,
+      "flyer_interior": 1.8,
+      "flyer_front": 3.2
+     },
+     {
+      "secondary_display": 1.5,
+      "front_endcap": 2.5,
+      "flyer_interior": 1.8,
+      "flyer_front": 3.2
+     }
+    ],
+    "label": "llama-3.3-70b-instruct",
+    "note": "an open-weight LLM asked to estimate",
+    "model_id": "meta-llama/llama-3.3-70b-instruct",
+    "lift_mae": 0.7274454147307943,
+    "in_range": {
+     "secondary_display": false,
+     "front_endcap": false,
+     "flyer_interior": true,
+     "flyer_front": false
+    },
+    "in_range_count": 1,
+    "kind": "LLM"
    }
   },
-  "notes": [
-   "OPENROUTER_API_KEY is not set, so TypeSafe's Jev and the other hosted models were not scored. Jev has no free endpoint and no local weights, so there is no way to run it from here without a key. Set the key and re-run this script to fill the column in; nothing else needs to change."
-  ],
+  "notes": [],
   "repeats": 5,
   "prompt": "You are estimating promotional response for a US supermarket chain, for a planning decision worth real money.\n\nFor a typical mid-selling grocery product (not a top-10 staple), estimate how its weekly unit sales change under each merchandising treatment below, compared with the same product sitting on its normal shelf with no promotion. Price is unchanged in every case. Report the multiple of baseline unit sales.\n\n1. secondary_display: moved to a secondary in-aisle or in-shelf display, still no flyer\n2. front_endcap: moved to a front-of-store endcap, still no flyer\n3. flyer_interior: stays on its normal shelf, featured on an interior page of the weekly flyer\n4. flyer_front: stays on its normal shelf, featured on the front page of the weekly flyer\n\nAnswer with ONLY a JSON object, no prose and no code fence:\n{\"secondary_display\": <number>, \"front_endcap\": <number>, \"flyer_interior\": <number>, \"flyer_front\": <number>}\n\nA multiple of 1.0 means no change. Give your single best point estimate for each."
  }

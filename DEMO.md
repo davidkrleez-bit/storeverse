@@ -80,9 +80,12 @@ Point at the three numbers, then the histogram.
 Point at the lift table.
 
 > Measured is the lift read off holdout receipts with a confidence interval. Simon-1 is
-> inside the interval on all four levers, mean error 0.032. Ignore-promotion: zero out of
-> four. The average-lift rule: one out of four. Claude, asked the same question in words:
-> two out of four, mean error twelve times ours.
+> inside the interval on all four levers, mean error 0.032. Then everyone else.
+>
+> Ignore-promotion: zero out of four. The average-lift rule: one. Claude: two. Jev, which is
+> TypeSafe's purpose-built decision model, the closest commercial thing to what we do: one out
+> of four, and fifteen times our error. Gemini is out by a factor of three on the endcap.
+> The best of them is GPT at 0.151, still nearly five times our error.
 
 Then the third card, deliberately.
 
@@ -123,10 +126,11 @@ promoted-rows columns isolate it: on the 360,000 decisions where nothing was pro
 engines are identical by construction.
 
 **"Did you test Jev?"**
-Not yet, and the app says so on the Model check screen. Jev is a proprietary decision model
-with no free endpoint and no local weights, so it needs an OpenRouter key we do not have. The
-harness is written and the column is wired through; set `OPENROUTER_API_KEY` and re-run one
-script and it fills in. Same for GPT, Gemini and Llama.
+Yes, through OpenRouter, five runs, same question and same scoring as everything else. It is
+TypeSafe's decision model rather than an LLM, which is why it is the most interesting
+comparison on the board. It scored 0.481 mean error against our 0.032, one of four inside the
+interval, and it was the least stable model on the endcap question at ±0.40 between runs. It
+also lands on the naive 2.58x, same as the others.
 
 **"Why those 70 products?"**
 Staples do not respond to merchandising — the top products by volume show a lift of about 1.0.

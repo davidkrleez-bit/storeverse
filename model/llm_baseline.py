@@ -41,11 +41,16 @@ Answer with ONLY a JSON object, no prose and no code fence:
 
 A multiple of 1.0 means no change. Give your single best point estimate for each."""
 
+# Exact ids as OpenRouter serves them. Check /api/v1/models before changing these:
+# guessing a version that does not exist fails validation rather than being coerced.
 OPENROUTER_MODELS = [
-    ("jev", "typesafe/jev-1.13", "TypeSafe's decision model, used as-is"),
-    ("gpt", "openai/gpt-5", "a general-purpose LLM asked to estimate"),
-    ("gemini", "google/gemini-2.5-pro", "a general-purpose LLM asked to estimate"),
-    ("llama", "meta-llama/llama-3.3-70b-instruct", "an open-weight LLM asked to estimate"),
+    # Jev is not a language model: TypeSafe build it as a "System One" decision model that
+    # returns typed answers with probabilities. It is in here because it is the closest
+    # commercial thing to what Simon-1 does, not as another chatbot.
+    ("jev", "typesafe/jev-router", "TypeSafe's decision model, used as-is", "decision model"),
+    ("gpt", "openai/gpt-5.6-luna-pro", "a general-purpose LLM asked to estimate", "LLM"),
+    ("gemini", "google/gemini-2.5-pro", "a general-purpose LLM asked to estimate", "LLM"),
+    ("llama", "meta-llama/llama-3.3-70b-instruct", "an open-weight LLM asked to estimate", "LLM"),
 ]
 
 
@@ -125,7 +130,7 @@ def main():
     if shutil.which("claude"):
         res, errs = run("claude", ask_claude, args.repeats)
         if res:
-            engines["claude"] = {**res, "label": "Claude",
+            engines["claude"] = {**res, "label": "Claude", "kind": "LLM",
                                  "note": "a general-purpose LLM asked to estimate"}
         elif errs:
             notes.append(f"Claude could not be scored: {errs[-1]}")
@@ -134,11 +139,11 @@ def main():
 
     key = os.environ.get("OPENROUTER_API_KEY")
     if key:
-        for name, model_id, note in OPENROUTER_MODELS:
+        for name, model_id, note, kind in OPENROUTER_MODELS:
             res, errs = run(name, lambda m=model_id: ask_openrouter(m, key), args.repeats)
             if res:
                 engines[name] = {**res, "label": model_id.split("/")[-1], "note": note,
-                                 "model_id": model_id}
+                                 "kind": kind, "model_id": model_id}
             elif errs:
                 notes.append(f"{model_id} could not be scored: {errs[-1]}")
     else:

@@ -474,7 +474,7 @@ VIEWS.model = () => {
       get: k => V.effects[k].simulated.avg_lift,
       inr: k => V.effects[k].in_range.avg_lift, mae: V.lift_mae.avg_lift },
     ...llmKeys.map(n => ({
-      label: llm[n].label, note: llm[n].note, llm: true,
+      label: llm[n].label, note: llm[n].note, llm: true, kind: llm[n].kind || 'LLM',
       get: k => llm[n].estimate[k], inr: k => llm[n].in_range[k], mae: llm[n].lift_mae,
       spread: k => llm[n].spread[k], draws: llm[n].draws })),
   ];
@@ -536,7 +536,7 @@ VIEWS.model = () => {
           }).join('')}
           <td class="num">&mdash;</td><td class="num">&mdash;</td></tr>
         ${liftRows.map(r => `<tr${r.mark ? ' class="win"' : ''}>
-          <td><b>${esc(r.label)}</b>${r.llm ? ' <span class="tag">LLM</span>' : ''}<br>
+          <td><b>${esc(r.label)}</b>${r.llm ? ` <span class="tag">${esc(r.kind)}</span>` : ''}<br>
             <span class="note">${esc(r.note)}</span></td>
           ${LK.map(k => `<td class="num">${r.get(k).toFixed(2)}${r.inr(k) ? ' <span class="ok">&#10003;</span>' : ''}${
             r.spread ? `<br><span class="note">&plusmn;${(r.spread(k) / 2).toFixed(2)}</span>` : ''}</td>`).join('')}

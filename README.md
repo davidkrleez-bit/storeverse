@@ -20,19 +20,27 @@ python server.py                # then open localhost:8000
 ## The headline
 
 On a holdout of **559,090 decisions** the chain never showed the model, Simon-1 estimates the
-effect of a merchandising change with a mean absolute error of **0.032**, against 0.383 for a
-language model, 0.498 for ignoring promotion and 0.574 for the usual average-lift rule. It is
-the only engine whose estimate lands inside the measured confidence interval on all four
-levers.
+effect of a merchandising change with a mean absolute error of **0.032**. The next best engine
+of any kind is **4.7x worse**, and Simon-1 is the only one whose estimate lands inside the
+measured interval on all four levers.
 
-| Change | Measured | Simon-1 | As-usual | Average lift | Claude |
-| --- | --- | --- | --- | --- | --- |
-| Secondary display | 1.32 [1.23, 1.43] | **1.34** ✓ | 1.00 | 2.07 | 1.56 |
-| Front endcap | 1.34 [1.23, 1.48] | **1.31** ✓ | 1.00 | 2.07 | 2.34 |
-| Flyer interior | 1.60 [1.33, 1.90] | **1.53** ✓ | 1.00 | 2.07 | 1.35 ✓ |
-| Flyer front page | 1.72 [1.32, 2.22] | **1.70** ✓ | 1.00 | 2.07 ✓ | 1.77 ✓ |
-| **Mean error** | | **0.032** | 0.498 | 0.574 | 0.383 |
-| **Inside the interval** | | **4 / 4** | 0 / 4 | 1 / 4 | 2 / 4 |
+| Engine | Secondary display | Front endcap | Flyer interior | Flyer front page | Mean error | In CI |
+| --- | --- | --- | --- | --- | --- | --- |
+| **Measured** (stratified) | 1.32 [1.23, 1.43] | 1.34 [1.23, 1.48] | 1.60 [1.33, 1.90] | 1.72 [1.32, 2.22] | | |
+| **Simon-1** | **1.34** ✓ | **1.31** ✓ | **1.53** ✓ | **1.70** ✓ | **0.032** | **4 / 4** |
+| GPT-5.6 Luna Pro | 1.35 ✓ | 1.64 | 1.39 ✓ | 1.79 ✓ | 0.151 | 3 / 4 |
+| Claude | 1.58 | 2.40 | 1.36 ✓ | 1.82 ✓ | 0.413 | 2 / 4 |
+| Jev (TypeSafe decision model) | 1.49 | 2.58 | 1.20 | 1.60 ✓ | 0.481 | 1 / 4 |
+| Llama 3.3 70B | 1.56 | 2.50 | 1.72 ✓ | 3.12 | 0.727 | 1 / 4 |
+| Gemini 2.5 Pro | 1.80 | 3.80 | 1.84 ✓ | 3.50 | 1.237 | 1 / 4 |
+| As-usual | 1.00 | 1.00 | 1.00 | 1.00 | 0.498 | 0 / 4 |
+| Average lift | 2.07 | 2.07 | 2.07 | 2.07 ✓ | 0.574 | 1 / 4 |
+
+Two things stand out. **Jev, a decision model purpose-built for exactly this kind of typed
+estimate, does worse than a general-purpose LLM** and 15x worse than Simon-1 — and it gave the
+widest spread of any model on the endcap question, ±0.40 across five runs. And **Gemini is off
+by a factor of nearly three** on the front endcap while sounding exactly as confident as
+everyone else.
 
 And on ordinary predictive accuracy over the same holdout:
 
@@ -42,10 +50,8 @@ And on ordinary predictive accuracy over the same holdout:
 | As-usual | 0.7486 | 0.04065 | 0.7326 | 0.05860 |
 | Average lift | 0.7674 | 0.04039 | 0.7326 | 0.05833 |
 
-The promoted-row columns matter: on the 359,097 decisions where nothing was being promoted
-all three engines are identical by construction, so the full-sample figures understate the gap.
-
----
+The promoted-row columns matter: on the 359,097 decisions where nothing was being promoted all
+three engines are identical by construction, so the full-sample figures understate the gap.
 
 ## Why everything else is wrong in the same direction
 
@@ -144,22 +150,22 @@ Baselines: **as-usual** ignores promotion; **average lift** applies one blanket 
 change. That number goes into the same table and is marked against the same measurement.
 
 Each model is asked five times, because a planner who asks once gets one draw from a spread
-they cannot see. Claude's spread across runs is up to ±0.10.
+they cannot see. That spread is wide and it is not symmetric across models: Gemini moved ±1.40
+on the flyer front page between runs, Jev ±0.40 on the endcap, GPT ±0.40, Claude ±0.10.
 
-Claude runs through the local `claude` CLI, so no API key is needed. **TypeSafe's Jev and the
-other hosted models need `OPENROUTER_API_KEY`.** Jev has no free endpoint and no local
-weights, so it cannot be run without one. The harness is written and the column is wired
-through to the UI; set the key and re-run the script and it fills in, with nothing else to
-change:
+Claude runs through the local `claude` CLI, so no key is needed. The rest go through OpenRouter:
 
 ```
-OPENROUTER_API_KEY=sk-or-... python model/llm_baseline.py
+OPENROUTER_API_KEY=sk-or-... python model/llm_baseline.py --repeats 5
 ```
 
-Models it will reach: `typesafe/jev-1.13`, `openai/gpt-5`, `google/gemini-2.5-pro`,
-`meta-llama/llama-3.3-70b-instruct`. Edit `OPENROUTER_MODELS` to change the list.
+Models reached: `typesafe/jev-router`, `openai/gpt-5.6-luna-pro`, `google/gemini-2.5-pro`,
+`meta-llama/llama-3.3-70b-instruct`. Edit `OPENROUTER_MODELS` to change the list, and check
+`/api/v1/models` first — a version string that does not exist fails validation rather than
+being coerced to the nearest one.
 
----
+If no key is set the script says which models went unscored and the app shows that note,
+rather than quietly leaving the column blank.
 
 ## The app
 
