@@ -1,26 +1,67 @@
 // 3D floor. Built from the same store spec the simulator scores, so what you orbit around
 // and what the numbers describe are the same object.
+//
+// The look is a bright isometric illustration: an orthographic camera, a cream floor slab,
+// grey room walls that hide themselves when they face the viewer, white shelving stocked
+// with small colourful packs, and little people with legs and baskets. Everything is still
+// procedural, so a floor read from a photograph gets the exact same treatment as the demo.
 import * as THREE from 'three';
 
 let renderer, scene, camera, store, root, promoGroup, shopperGroup, raf = 0;
 
 const C = {
-  floor: 0xe4e1db, wall: 0xf7f5f2, fixture: 0xd3cec5, fixtureTop: 0xa9a299,
-  cool: 0xa9c0c9, produce: 0x7f9154, ink: 0x15161a, accent: 0x1c6f5a,
-  checkout: 0xc9c3b8, shelf: 0xefece6, pad: 0xdbd7d0,
+  floor: 0xe9dec6, slab: 0xd7d1c2, wall: 0xb3b7ba, pad: 0xded2b8,
+  fixture: 0xf2f2ef, fixtureBase: 0x9ba0a4, fixtureTop: 0xd9dbdc, shelf: 0xffffff,
+  cool: 0xbfdce8, coolBody: 0xeef1f2, coolBack: 0x51575e,
+  checkout: 0xece6d8, belt: 0x4a4e55, screen: 0x23262b,
+  wood: 0xc08a4d, woodDark: 0x96682f,
+  ink: 0x2b2e33, accent: 0x1c6f5a,
 };
 const BASE_C = { ...C };
 
+// Packaging colours by what the category actually is, so soft drinks read as bottles and
+// bakery reads as bread, even though every one of them is a little box on a shelf.
+const PALETTES = {
+  drink: [0xd94436, 0x2e7dd1, 0xf29c38, 0x53b36a, 0x8a4db3, 0xf0eee8, 0x36a8a0],
+  snack: [0xf2b53a, 0xd94436, 0x67a845, 0xf28c38, 0xe8d49e, 0x2e7dd1],
+  bake: [0xc08a4d, 0xa9743a, 0xe0b36a, 0xd9985f, 0xeed9ab],
+  dairy: [0xf2efe6, 0x79b8d4, 0xf2b53a, 0xe29ab0, 0xffffff],
+  meat: [0xc24040, 0x8e3030, 0xe08a6a, 0xf2efe6, 0xa85858],
+  produce: [0x4f9e4f, 0x7cc24b, 0xd94436, 0xf2b53a, 0xf28c38],
+  frozen: [0xd94436, 0xf2b53a, 0x79b8d4, 0xf0eee8, 0x2e7dd1],
+  mixed: [0xd94436, 0xf2b53a, 0x2e7dd1, 0x53b36a, 0xf28c38, 0x8a4db3, 0xf0eee8, 0x79b8d4],
+};
+
+function familyOf(cat = '') {
+  const c = String(cat).toUpperCase();
+  if (/BREAD|BAKE|ROLL|BUN/.test(c)) return PALETTES.bake;
+  if (/FROZEN|PIZZA/.test(c)) return PALETTES.frozen;
+  if (/DRINK|SODA|JUICE|WATER|ISOTONIC/.test(c)) return PALETTES.drink;
+  if (/SNACK|CHIP|CRACKER|COOKIE|CANDY|BKD/.test(c)) return PALETTES.snack;
+  if (/CHEESE|YOGURT|DAIRY|MILK/.test(c)) return PALETTES.dairy;
+  if (/MEAT|BACON|SAUSAGE|DELI/.test(c)) return PALETTES.meat;
+  if (/PRODUCE|FRUIT|VEG/.test(c)) return PALETTES.produce;
+  return PALETTES.mixed;
+}
+
+/** Deterministic per-fixture randomness, so the stock does not reshuffle on every render. */
+function rng(seed) {
+  let h = 2166136261;
+  for (const ch of String(seed)) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); }
+  return () => ((h = Math.imul(h ^ (h >>> 15), 2246822519) >>> 0) / 4294967296);
+}
+
 const hexInt = h => parseInt(String(h).replace('#', ''), 16);
 const isHex = h => typeof h === 'string' && /^#?[0-9a-f]{6}$/i.test(h);
-/** Nudge a colour lighter (f > 1) or darker (f < 1), to derive shelves and caps. */
+/** Nudge a colour lighter (f > 1) or darker (f < 1). */
 function shade(hex, f) {
-  const n = hexInt(hex), ch = s => Math.min(255, Math.round(((n >> s) & 255) * f));
+  const n = typeof hex === 'number' ? hex : hexInt(hex);
+  const ch = s => Math.min(255, Math.round(((n >> s) & 255) * f));
   return (ch(16) << 16) | (ch(8) << 8) | ch(0);
 }
 
 /** Blend toward a photo colour without handing the whole room over to it. */
-function toward(hex, base, t = 0.6) {
+function toward(hex, base, t = 0.55) {
   const n = hexInt(hex);
   const ch = s => Math.round((((n >> s) & 255) * t) + (((base >> s) & 255) * (1 - t)));
   return (ch(16) << 16) | (ch(8) << 8) | ch(0);
@@ -30,35 +71,35 @@ function toward(hex, base, t = 0.6) {
  * Take the room's colours from the photo, with two limits.
  *
  * The accent never moves: green here means a position is responding, so it is data
- * and not decor, and a store whose walls happen to be red must not end up colouring
- * its own results. And every colour is only blended part of the way, because a photo
- * read off a grey shop at dusk will otherwise flatten the whole floor into slabs.
+ * and not decor. And every colour is only blended part of the way, because a photo
+ * read off a grey shop at dusk would otherwise flatten the whole illustration.
+ * Packaging colours never come from the photo at all; they belong to the categories.
  */
 function applyPalette(p = {}) {
   Object.assign(C, BASE_C);
   if (isHex(p.floor)) {
     C.floor = toward(p.floor, BASE_C.floor);
-    C.pad = shade('#' + C.floor.toString(16).padStart(6, '0'), 0.95);
+    C.pad = shade(C.floor, 0.94);
+    C.slab = shade(C.floor, 0.9);
   }
   if (isHex(p.wall)) C.wall = toward(p.wall, BASE_C.wall);
   if (isHex(p.fixture)) {
-    C.fixture = toward(p.fixture, BASE_C.fixture);
-    const fh = '#' + C.fixture.toString(16).padStart(6, '0');
-    C.fixtureTop = shade(fh, 0.78);
-    C.shelf = shade(fh, 1.14);
-    C.checkout = shade(fh, 0.94);
+    C.fixture = toward(p.fixture, BASE_C.fixture, 0.4);
+    C.fixtureTop = shade(C.fixture, 0.88);
+    C.shelf = shade(C.fixture, 1.06);
   }
-  if (isHex(p.cool)) C.cool = toward(p.cool, BASE_C.cool);
-  if (isHex(p.produce)) C.produce = toward(p.produce, BASE_C.produce, 0.75);
+  if (isHex(p.cool)) C.cool = toward(p.cool, BASE_C.cool, 0.4);
+}
+
+function mat(color, opts = {}) {
+  return new THREE.MeshStandardMaterial({
+    color, roughness: opts.rough ?? 0.85, metalness: opts.metal ?? 0.02,
+    transparent: opts.opacity !== undefined, opacity: opts.opacity ?? 1,
+  });
 }
 
 function box(w, h, d, color, opts = {}) {
-  const g = new THREE.BoxGeometry(w, h, d);
-  const m = new THREE.MeshStandardMaterial({
-    color, roughness: opts.rough ?? 0.82, metalness: opts.metal ?? 0.02,
-    transparent: opts.opacity !== undefined, opacity: opts.opacity ?? 1,
-  });
-  const mesh = new THREE.Mesh(g, m);
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(color, opts));
   mesh.castShadow = mesh.receiveShadow = true;
   return mesh;
 }
@@ -83,32 +124,156 @@ function poster(text, w, h, accent = '#1c6f5a') {
   return mesh;
 }
 
-/** A gondola run: carcass plus shelf slabs, so it reads as shelving and not a slab. */
-function gondola(w, d, h, color) {
-  const g = new THREE.Group();
-  const body = box(w, h, d, color);
-  body.position.y = h / 2;
-  g.add(body);
-  const shelves = 4;
-  for (let i = 1; i <= shelves; i++) {
-    const s = box(w * 1.06, 0.045, d * 1.1, C.shelf, { rough: 0.7 });
-    s.position.y = (h / (shelves + 1)) * i;
-    g.add(s);
+// ------------------------------------------------------------------ stocked fixtures
+//
+// Every fixture builds its merchandise as one InstancedMesh: a thousand packs is one
+// draw call, so the floor can afford to actually be stocked.
+
+const PACK_GEO = new THREE.BoxGeometry(1, 1, 1); PACK_GEO.translate(0, 0.5, 0);
+const LOAF_GEO = new THREE.SphereGeometry(0.5, 10, 7); LOAF_GEO.translate(0, 0.5, 0);
+const BOTTLE_GEO = new THREE.CylinderGeometry(0.5, 0.5, 1, 8); BOTTLE_GEO.translate(0, 0.5, 0);
+const FRUIT_GEO = new THREE.SphereGeometry(0.5, 9, 7); FRUIT_GEO.translate(0, 0.5, 0);
+
+function instanced(geo, items) {
+  const im = new THREE.InstancedMesh(geo, mat(0xffffff, { rough: 0.8 }), items.length);
+  const M = new THREE.Matrix4(), P = new THREE.Vector3(), Q = new THREE.Quaternion(),
+    S = new THREE.Vector3(), col = new THREE.Color();
+  items.forEach((it, i) => {
+    M.compose(P.set(it.x, it.y, it.z), Q, S.set(it.sx, it.sy, it.sz));
+    im.setMatrixAt(i, M);
+    im.setColorAt(i, col.setHex(it.c));
+  });
+  im.instanceMatrix.needsUpdate = true;
+  if (im.instanceColor) im.instanceColor.needsUpdate = true;
+  im.castShadow = im.receiveShadow = true;
+  return im;
+}
+
+/** Rows of packs along a shelf, with gaps where someone already shopped it. */
+function stockRow(items, r, fam, x0, x1, y, z, depth, loaf) {
+  const step = loaf ? 0.3 : 0.3;
+  for (let x = x0 + 0.16; x < x1 - 0.12; x += step) {
+    if (r() < 0.12) continue;
+    const c = fam[Math.floor(r() * fam.length)];
+    if (loaf) items.push({ x: x + (r() - 0.5) * 0.04, y, z, sx: 0.3, sy: 0.17 + r() * 0.05, sz: Math.min(0.26, depth), c, loaf: true });
+    else items.push({ x: x + (r() - 0.5) * 0.05, y, z, sx: 0.24, sy: 0.2 + r() * 0.15, sz: Math.min(0.32, depth * 0.8), c });
   }
-  const cap = box(w * 1.02, 0.06, d * 1.02, C.fixtureTop);
-  cap.position.y = h;
-  g.add(cap);
+}
+
+/**
+ * A gondola run: grey plinth, white carcass, and every shelf actually stocked.
+ * Double-sided for aisle units; one-sided (against a wall) when asked.
+ */
+function gondola(L, D, h, zone, opts = {}) {
+  const g = new THREE.Group();
+  const r = rng('g' + (zone?.category || '') + L.toFixed(1) + D.toFixed(1));
+  const fam = familyOf(zone?.category);
+  const loaf = fam === PALETTES.bake;
+  const wood = loaf;
+
+  const plinth = box(L, 0.14, D, C.fixtureBase); plinth.position.y = 0.07; g.add(plinth);
+  const spineD = opts.oneSided ? 0.1 : 0.14;
+  const spineZ = opts.oneSided ? D / 2 - spineD / 2 : 0;
+  const spine = box(L, h - 0.14, spineD, wood ? C.wood : C.fixture);
+  spine.position.set(0, (h - 0.14) / 2 + 0.14, spineZ); g.add(spine);
+  // No lid. The camera is orthographic and mostly overhead, so a cap would hide the
+  // stock; in the reference illustration you read a gondola by its top shelf.
+  const rail = box(L * 1.01, 0.05, spineD + 0.06, wood ? C.woodDark : C.fixtureTop);
+  rail.position.set(0, h + 0.025, spineZ); g.add(rail);
+
+  const levels = h > 1.6 ? 4 : 3;
+  const sideD = opts.oneSided ? D - spineD - 0.04 : (D - spineD) / 2 - 0.02;
+  const sides = opts.oneSided ? [-1] : [-1, 1];
+  const items = [];
+  for (const s of sides) {
+    const zc = opts.oneSided ? spineZ - spineD / 2 - sideD / 2 : s * (spineD / 2 + sideD / 2);
+    for (let i = 0; i < levels; i++) {
+      const y = 0.22 + i * ((h - 0.62) / (levels - 1));
+      const slab = box(L * 1.01, 0.045, sideD + 0.04, wood ? C.wood : C.shelf, { rough: 0.7 });
+      slab.position.set(0, y, zc); g.add(slab);
+      stockRow(items, r, fam, -L / 2, L / 2, y + 0.025, zc, sideD, loaf);
+    }
+  }
+  if (items.length) {
+    g.add(instanced(PACK_GEO, items.filter(i => !i.loaf)));
+    const loaves = items.filter(i => i.loaf);
+    if (loaves.length) g.add(instanced(LOAF_GEO, loaves));
+  }
   return g;
 }
 
-function cooler(w, d, h) {
+/** A glass-door cooler: pale case, dark inside, rows of bright bottles, brand band on top. */
+function cooler(L, D, h, zone) {
   const g = new THREE.Group();
-  const body = box(w, h, d, 0xe4e7e8);
-  body.position.y = h / 2; g.add(body);
-  const glass = box(w * 0.94, h * 0.62, 0.05, C.cool, { opacity: 0.45, rough: 0.15, metal: 0.1 });
-  glass.position.set(0, h * 0.56, -d / 2 - 0.03);
-  g.add(glass);
-  const glass2 = glass.clone(); glass2.position.z = d / 2 + 0.03; g.add(glass2);
+  const r = rng('c' + (zone?.category || '') + L.toFixed(1));
+  const fam = familyOf(zone?.category || 'DRINK');
+
+  const body = box(L, h, D, C.coolBody); body.position.y = h / 2; g.add(body);
+  const back = box(L * 0.94, h * 0.74, D * 0.5, C.coolBack);
+  back.position.set(0, h * 0.46, D * 0.12); g.add(back);
+
+  const items = [];
+  const rows = 3, innerD = Math.min(0.3, D * 0.5);
+  for (let i = 0; i < rows; i++) {
+    const y = h * 0.14 + i * (h * 0.62 / (rows - 1));
+    const slab = box(L * 0.94, 0.03, innerD + 0.06, C.fixtureTop);
+    slab.position.set(0, y, -D * 0.14); g.add(slab);
+    for (let x = -L / 2 + 0.2; x < L / 2 - 0.14; x += 0.17) {
+      if (r() < 0.1) continue;
+      items.push({ x: x + (r() - 0.5) * 0.03, y: y + 0.015, z: -D * 0.14,
+        sx: 0.11, sy: 0.26 + r() * 0.08, sz: 0.11, c: fam[Math.floor(r() * fam.length)] });
+    }
+  }
+  if (items.length) g.add(instanced(BOTTLE_GEO, items));
+
+  const glass = box(L * 0.96, h * 0.72, 0.04, C.cool, { opacity: 0.32, rough: 0.12, metal: 0.1 });
+  glass.position.set(0, h * 0.47, -D / 2 - 0.02);
+  glass.castShadow = false; g.add(glass);
+  for (let i = 1; i < Math.max(2, Math.round(L / 0.9)); i++) {
+    const mull = box(0.04, h * 0.72, 0.05, C.coolBody);
+    mull.position.set(-L / 2 + i * (L / Math.max(2, Math.round(L / 0.9))), h * 0.47, -D / 2 - 0.02);
+    g.add(mull);
+  }
+  const band = box(L, 0.26, D * 1.02, fam[1] ?? 0x2e7dd1);
+  band.position.y = h + 0.13; g.add(band);
+  return g;
+}
+
+/** A produce island: a wood crate table with mounded colour patches on top. */
+function island(L, D, zone) {
+  const g = new THREE.Group();
+  const r = rng('i' + (zone?.category || '') + L.toFixed(1));
+  const fam = familyOf(zone?.category || 'PRODUCE');
+  const body = box(L, 0.72, D, C.wood, { rough: 0.9 }); body.position.y = 0.36; g.add(body);
+  const rim = box(L * 1.05, 0.1, D * 1.05, C.woodDark); rim.position.y = 0.76; g.add(rim);
+
+  const items = [];
+  const patches = Math.max(2, Math.round(L / 0.9));
+  for (let pz = 0; pz < 2; pz++) for (let px = 0; px < patches; px++) {
+    const c = fam[Math.floor(r() * fam.length)];
+    const cx = -L / 2 + (px + 0.5) * (L / patches), cz = -D / 4 + pz * (D / 2);
+    for (let k = 0; k < 7; k++) {
+      items.push({ x: cx + (r() - 0.5) * (L / patches) * 0.7, y: 0.78 + r() * 0.06,
+        z: cz + (r() - 0.5) * D * 0.34, sx: 0.16, sy: 0.14, sz: 0.16, c });
+    }
+  }
+  g.add(instanced(FRUIT_GEO, items));
+  return g;
+}
+
+/** A checkout lane: counter, dark belt, a screen on a pole, and someone working it. */
+function checkoutUnit(c, i) {
+  const g = new THREE.Group();
+  const counter = box(c.w, 0.92, c.d, C.checkout); counter.position.y = 0.46; g.add(counter);
+  const belt = box(c.w * 0.72, 0.035, c.d * 0.55, C.belt);
+  belt.position.set(0, 0.94, c.d * 0.06); g.add(belt);
+  const pole = box(0.05, 0.56, 0.05, C.ink); pole.position.set(0, 1.2, -c.d / 2 + 0.3); g.add(pole);
+  const screen = box(0.36, 0.26, 0.05, C.screen);
+  screen.position.set(0, 1.46, -c.d / 2 + 0.3); g.add(screen);
+  const clerk = person(40 + i, { basket: false });
+  clerk.position.set(c.w / 2 + 0.42, 0, -c.d * 0.1);
+  clerk.rotation.y = -Math.PI / 2;
+  g.add(clerk);
   return g;
 }
 
@@ -124,16 +289,15 @@ export function mountScene(canvas, spec) {
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
   scene = new THREE.Scene();
-  const air = shade('#' + C.wall.toString(16).padStart(6, '0'), 1.02);
-  scene.background = new THREE.Color(air);
-  scene.fog = new THREE.Fog(air, Math.max(S.w, S.d) * 1.4, Math.max(S.w, S.d) * 2.9);
+  scene.background = new THREE.Color(0xf6f1e8);
 
-  camera = new THREE.PerspectiveCamera(42, 2, 0.1, 400);
+  // The illustration is isometric, so the camera is orthographic: nothing shrinks with
+  // distance and the floor reads as a diagram you can walk.
+  camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.5, 600);
+  viewHalf = Math.hypot(S.w, S.d) * 0.42;
+  camDist = Math.max(S.w, S.d) * 2.4 + 20;
 
-  // Most of the light is ambient and most of the rest comes back off the fill, so the
-  // single shadow-casting lamp only has to shape things. Shadows read as a soft drop
-  // rather than a hole, which matters once there are people to see inside them.
-  scene.add(new THREE.HemisphereLight(0xffffff, 0xdcd6cc, 2.25));
+  scene.add(new THREE.HemisphereLight(0xffffff, 0xd9d2c4, 2.25));
   const key = new THREE.DirectionalLight(0xfff6e8, 1.05);
   key.position.set(-18, 30, 16);
   key.castShadow = true;
@@ -141,7 +305,7 @@ export function mountScene(canvas, spec) {
   key.shadow.radius = 2.4;
   key.shadow.bias = -0.0008;
   const ext = Math.max(S.w, S.d);
-  Object.assign(key.shadow.camera, { left: -ext, right: ext, top: ext, bottom: -ext, near: 1, far: 90 });
+  Object.assign(key.shadow.camera, { left: -ext, right: ext, top: ext, bottom: -ext, near: 1, far: 140 });
   scene.add(key);
   const fill = new THREE.DirectionalLight(0xffffff, 0.62);
   fill.position.set(20, 14, -12);
@@ -160,69 +324,90 @@ export function mountScene(canvas, spec) {
   loop();
 }
 
+/** One room wall: a single-sided plane facing the inside, so it hides itself whenever the
+ * camera comes around behind it and the room opens up like a dollhouse. */
+function wallPlane(w, h, x, z, ry) {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat(C.wall, { rough: 0.96 }));
+  m.position.set(x, h / 2, z);
+  m.rotation.y = ry;
+  m.receiveShadow = true;
+  root.add(m);
+  const trim = new THREE.Mesh(new THREE.PlaneGeometry(w, 0.18), mat(shade(C.wall, 0.82)));
+  trim.position.set(x, 0.09, z); trim.rotation.y = ry;
+  trim.position.x += Math.sin(ry) * 0.01; trim.position.z += Math.cos(ry) * 0.01;
+  root.add(trim);
+}
+
 function build() {
   const S = store.size;
   while (root.children.length) root.remove(root.children[0]);
 
-  const floor = new THREE.Mesh(new THREE.PlaneGeometry(S.w, S.d),
-    new THREE.MeshStandardMaterial({ color: C.floor, roughness: 0.95 }));
+  // The ground is a slab, not an infinite plane: the whole store sits on a tile you
+  // could pick up, which is most of what makes it read as an illustration.
+  const slab = box(S.w + 0.6, 0.3, S.d + 0.6, C.slab);
+  slab.position.set(S.w / 2, -0.16, S.d / 2);
+  slab.castShadow = false;
+  root.add(slab);
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(S.w, S.d), mat(C.floor, { rough: 0.95 }));
   floor.rotation.x = -Math.PI / 2;
-  floor.position.set(S.w / 2, 0, S.d / 2);
+  floor.position.set(S.w / 2, 0.001, S.d / 2);
   floor.receiveShadow = true;
   root.add(floor);
 
-  // Low walls on three sides, so the floor reads as a room but stays open to the camera.
-  // Kept proportional, or a small shop looks like it is sitting in a bunker.
-  const wh = Math.min(1.5, Math.max(0.75, Math.min(S.w, S.d) * 0.07));
-  const mk = (w, d, x, z) => { const b = box(w, wh, d, C.wall); b.position.set(x, wh / 2, z); root.add(b); };
-  mk(S.w, 0.18, S.w / 2, S.d);
-  mk(0.18, S.d, 0, S.d / 2);
-  mk(0.18, S.d, S.w, S.d / 2);
+  const WH = Math.min(3.2, Math.max(2.4, (S.h || 3) * 0.92));
+  wallPlane(S.w, WH, S.w / 2, S.d, Math.PI);                       // back
+  wallPlane(S.d, WH, 0, S.d / 2, Math.PI / 2);                     // left
+  wallPlane(S.d, WH, S.w, S.d / 2, -Math.PI / 2);                  // right
   const e = store.entrance;
-  mk(e.x - e.w / 2, 0.18, (e.x - e.w / 2) / 2, 0);
-  const rightStart = e.x + e.w / 2;
-  mk(S.w - rightStart, 0.18, rightStart + (S.w - rightStart) / 2, 0);
+  const lw = e.x - e.w / 2, rw = S.w - (e.x + e.w / 2);
+  if (lw > 0.2) wallPlane(lw, WH, lw / 2, 0, 0);                   // front, beside the door
+  if (rw > 0.2) wallPlane(rw, WH, e.x + e.w / 2 + rw / 2, 0, 0);
+  const mat1 = new THREE.Mesh(new THREE.PlaneGeometry(e.w, 1.6), mat(shade(C.floor, 0.82)));
+  mat1.rotation.x = -Math.PI / 2;
+  mat1.position.set(e.x, 0.004, 0.8);
+  mat1.receiveShadow = true;
+  root.add(mat1);
 
   for (const z of store.zones) {
-    let g;
-    if (z.kind === 'cooler') g = cooler(z.w, z.d, 2.0);
-    else if (z.kind === 'island') {
-      g = new THREE.Group();
-      const b = box(z.w, 0.85, z.d, C.produce, { rough: 0.9 });
-      b.position.y = 0.42; g.add(b);
-      const rim = box(z.w * 1.04, 0.09, z.d * 1.04, C.fixtureTop);
-      rim.position.y = 0.88; g.add(rim);
+    // Build in a local frame whose length runs along x, then turn the group so the long
+    // face meets its aisle; a fixture read from a photo can arrive in either orientation.
+    const along = z.w >= z.d;
+    const L = along ? z.w : z.d, D = along ? z.d : z.w;
+    let g, rot = along ? 0 : Math.PI / 2;
+    if (z.kind === 'cooler') {
+      g = cooler(L, Math.max(D, 0.7), 2.0, z);
+      // Glass faces local -z; face the centre of the room.
+      const facing = along ? (z.z > S.d / 2 ? 0 : Math.PI) : (z.x > S.w / 2 ? Math.PI / 2 : -Math.PI / 2);
+      rot = facing;
+    } else if (z.kind === 'island') {
+      g = island(L, D, z);
     } else if (z.kind === 'wall') {
-      g = gondola(z.w, z.d, 2.3, C.fixture);
+      g = gondola(L, Math.max(D, 0.6), 2.25, z, { oneSided: true });
+      const facing = along ? (z.z > S.d / 2 ? 0 : Math.PI) : (z.x > S.w / 2 ? Math.PI / 2 : -Math.PI / 2);
+      rot = facing;
     } else {
-      g = gondola(z.w, z.d, 2.1, C.fixture);
+      g = gondola(L, Math.max(D, 0.9), 2.05, z);
     }
-    // The scuff margin around a fixture is a share of the floor, not a fixed metre.
-    // On a corner-shop floor a flat 1.1m of it would swallow the aisles.
     const pm = Math.min(1.1, Math.max(0.26, Math.min(S.w, S.d) * 0.045));
     const pad = new THREE.Mesh(
-      new THREE.PlaneGeometry(z.w + pm, z.d + pm),
-      new THREE.MeshStandardMaterial({ color: C.pad, roughness: 0.98 }));
+      new THREE.PlaneGeometry(z.w + pm, z.d + pm), mat(C.pad, { rough: 0.98 }));
     pad.rotation.x = -Math.PI / 2;
     pad.position.set(z.x, 0.012, z.z);
     pad.receiveShadow = true;
     root.add(pad);
     g.position.set(z.x, 0, z.z);
+    g.rotation.y = rot;
     g.userData.zone = z.category;
     root.add(g);
   }
 
-  for (const c of store.checkouts) {
-    const b = box(c.w, 1.0, c.d, C.checkout);
-    b.position.set(c.x, 0.5, c.z);
-    root.add(b);
-    const screen = box(0.34, 0.26, 0.05, C.ink);
-    screen.position.set(c.x, 1.22, c.z - c.d / 2 + 0.3);
-    root.add(screen);
-  }
+  (store.checkouts || []).forEach((c, i) => {
+    const g = checkoutUnit(c, i);
+    g.position.set(c.x, 0, c.z);
+    root.add(g);
+  });
 
-  // Signage hangs off whichever wall it is nearest, at a height that wall can carry.
-  const py = Math.max(1.2, wh + 0.5);
+  const py = Math.max(1.4, Math.min(2.2, (Math.min(3.2, Math.max(2.4, (S.h || 3) * 0.92))) - 0.7));
   for (const p of store.posters || []) {
     const m = poster(p.text, p.w, p.h);
     m.position.set(p.x, py, p.z);
@@ -244,32 +429,54 @@ function build() {
 export function updateScene(plan, sc) {
   if (!promoGroup) return;
   setCrowd(plan, sc);
-  while (promoGroup.children.length) promoGroup.remove(promoGroup.children[0]);
+  while (promoGroup.children.length) {
+    const ch = promoGroup.children[0];
+    promoGroup.remove(ch);
+    // Materials and sign textures are per-stack, so they go; geometry is shared between
+    // every stocked fixture on the floor and must survive the stack that borrowed it.
+    ch.traverse(o => { if (o.material?.map) o.material.map.dispose(); o.material?.dispose?.(); });
+  }
   const byCat = Object.fromEntries((sc?.rows || []).map(r => [r.category, r]));
 
   for (const s of store.slots.filter(x => x.kind === 'display')) {
     const cat = plan[s.id];
-    const h = s.level === 2 ? 1.25 : 0.95;
-    const base = box(s.w, 0.12, s.d, C.fixtureTop);
-    base.position.set(s.x, 0.06, s.z);
-    promoGroup.add(base);
+    const pallet = box(s.w, 0.1, s.d, C.woodDark, { rough: 0.95 });
+    pallet.position.set(s.x, 0.05, s.z);
+    promoGroup.add(pallet);
     if (!cat) continue;
     const r = byCat[cat];
     const hot = r && r.lift > 1.3;
-    const stack = box(s.w * 0.86, h, s.d * 0.86, hot ? C.accent : 0xbfc7c2, { rough: 0.75 });
-    stack.position.set(s.x, 0.12 + h / 2, s.z);
-    promoGroup.add(stack);
-    const crown = box(s.w * 0.92, 0.07, s.d * 0.92, C.fixtureTop);
-    crown.position.set(s.x, 0.12 + h + 0.04, s.z);
-    promoGroup.add(crown);
+    const fam = familyOf(cat);
+    const rr = rng('p' + s.id + cat);
+
+    // A stacked display: layers of real packs, shrinking as they go up, like a pallet
+    // someone has been shopping from.
+    const layers = s.level === 2 ? 4 : 3;
+    const items = [];
+    for (let l = 0; l < layers; l++) {
+      const f = 1 - l * 0.16;
+      const nx = Math.max(1, Math.floor((s.w * f) / 0.28));
+      const nz = Math.max(1, Math.floor((s.d * f) / 0.28));
+      for (let ix = 0; ix < nx; ix++) for (let iz = 0; iz < nz; iz++) {
+        if (l === layers - 1 && rr() < 0.3) continue;
+        items.push({
+          x: s.x - (nx - 1) * 0.14 + ix * 0.28, y: 0.1 + l * 0.23,
+          z: s.z - (nz - 1) * 0.14 + iz * 0.28,
+          sx: 0.25, sy: 0.22, sz: 0.25, c: fam[Math.floor(rr() * fam.length)],
+        });
+      }
+    }
+    promoGroup.add(instanced(PACK_GEO, items));
+
+    const top = 0.1 + layers * 0.23;
     const z = store.zones.find(x => x.category === cat);
     const sign = poster(z ? z.title : cat, Math.max(s.w, 1.1), 0.46, hot ? '#1c6f5a' : '#8d8a84');
-    sign.position.set(s.x, 0.12 + h + 0.42, s.z - s.d / 2 - 0.02);
+    sign.position.set(s.x, top + 0.42, s.z - s.d / 2 - 0.02);
     promoGroup.add(sign);
-    const back = sign.clone();
-    back.position.z = s.z + s.d / 2 + 0.02;
-    back.rotation.y = Math.PI;
-    promoGroup.add(back);
+    const backSign = sign.clone();
+    backSign.position.z = s.z + s.d / 2 + 0.02;
+    backSign.rotation.y = Math.PI;
+    promoGroup.add(backSign);
   }
 }
 
@@ -294,23 +501,40 @@ export function updateScene(plan, sc) {
 
 const WALK = 1.05;                 // metres per second
 const SKIN = [0xd8b89a, 0xbb9170, 0x8d6748, 0xeccfb4, 0x6f4f38];
-const WEAR = [0x4a5568, 0x7b8794, 0x8f6b5d, 0x5c6b58, 0x9a8a78, 0x3f4a5a, 0xa8907c];
+const WEAR = [0xd94436, 0x2e7dd1, 0xf2b53a, 0x53b36a, 0xf0eee8, 0x8a4db3, 0xf28c38, 0x3b4a5a];
+const PANTS = [0x3b4252, 0x5b6470, 0x7a5b43, 0x2b2e33, 0x4668a0];
+const HAIR = [0x2b2017, 0x4a3320, 0x8a5a2b, 0xd9c29a, 0x50565e];
 
 let crowd = null, people = [], pops = [], prevT = 0;
 
-function person(i) {
+/** A small illustrated figure: legs, torso, arms, head and hair, sometimes a basket. */
+function person(i, { basket = true } = {}) {
   const g = new THREE.Group();
-  const tone = WEAR[i % WEAR.length];
-  const body = new THREE.Mesh(
-    new THREE.CapsuleGeometry(0.2, 0.92, 4, 10),
-    new THREE.MeshStandardMaterial({ color: tone, roughness: 0.88 }));
-  body.position.y = 0.66;
-  const head = new THREE.Mesh(
-    new THREE.SphereGeometry(0.145, 14, 11),
-    new THREE.MeshStandardMaterial({ color: SKIN[i % SKIN.length], roughness: 0.78 }));
-  head.position.y = 1.4;
-  body.castShadow = head.castShadow = true;
-  g.add(body, head);
+  const r = rng('person' + i);
+  const skin = SKIN[Math.floor(r() * SKIN.length)];
+  const wear = WEAR[Math.floor(r() * WEAR.length)];
+  const pants = PANTS[Math.floor(r() * PANTS.length)];
+  const hair = HAIR[Math.floor(r() * HAIR.length)];
+
+  const legL = box(0.12, 0.55, 0.14, pants); legL.position.set(-0.08, 0.275, 0);
+  const legR = legL.clone(); legR.position.x = 0.08;
+  const torso = box(0.36, 0.56, 0.2, wear); torso.position.y = 0.55 + 0.28;
+  const armL = box(0.09, 0.44, 0.1, wear); armL.position.set(-0.235, 0.86, 0);
+  const armR = armL.clone(); armR.position.x = 0.235;
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.14, 12, 10), mat(skin, { rough: 0.75 }));
+  head.position.y = 1.28; head.castShadow = true;
+  const cap = new THREE.Mesh(
+    new THREE.SphereGeometry(0.15, 12, 7, 0, Math.PI * 2, 0, Math.PI / 2), mat(hair, { rough: 0.9 }));
+  cap.position.y = 1.29; cap.castShadow = true;
+  g.add(legL, legR, torso, armL, armR, head, cap);
+
+  if (basket && r() < 0.4) {
+    const basket = box(0.3, 0.17, 0.2, r() < 0.5 ? 0xd94436 : 0x2e7dd1, { rough: 0.8 });
+    basket.position.set(0.31, 0.5, 0.02);
+    const handle = box(0.03, 0.1, 0.16, C.ink);
+    handle.position.set(0.31, 0.63, 0.02);
+    g.add(basket, handle);
+  }
   return g;
 }
 
@@ -400,7 +624,7 @@ function setCrowd(plan = {}, sc = null) {
 
   const walls = [
     ...store.zones.map(z => ({ x: z.x, z: z.z, w: z.w, d: z.d })),
-    ...(store.checkouts || []).map(c => ({ x: c.x, z: c.z, w: c.w, d: c.d })),
+    ...(store.checkouts || []).map(c => ({ x: c.x, z: c.z, w: c.w + 0.8, d: c.d })),
     ...(store.slots || []).filter(s => s.kind === 'display' && plan[s.id])
       .map(s => ({ x: s.x, z: s.z, w: s.w, d: s.d })),
   ];
@@ -480,14 +704,10 @@ function stepCrowd(dt) {
 }
 
 // --------------------------------------------------------- camera control
-let th = -0.58, ph = 0.78, dist = 31, drag = null, target;
+let th = 0.79, ph = 0.96, zoom = 1, viewHalf = 20, camDist = 80, drag = null, target;
 function orbit(canvas) {
   target = new THREE.Vector3(0, 0.9, 0);
-  // Frame whatever floor we were handed: a corner shop and a supermarket are not the
-  // same distance away.
-  const S = store.size;
-  // Far enough back that the whole diagonal fits, whatever shape the room is.
-  dist = Math.min(84, Math.max(13, Math.hypot(S.w, S.d) * 1.02));
+  zoom = 1;
   canvas.style.cursor = 'grab';
   canvas.onpointerdown = e => {
     drag = { x: e.clientX, y: e.clientY };
@@ -505,7 +725,9 @@ function orbit(canvas) {
   canvas.onpointercancel = stop;
   canvas.onwheel = e => {
     e.preventDefault();
-    dist = Math.min(80, Math.max(12, dist + Math.sign(e.deltaY) * 2.2));
+    zoom = Math.min(3, Math.max(0.55, zoom * (e.deltaY > 0 ? 0.92 : 1.09)));
+    camera.zoom = zoom;
+    camera.updateProjectionMatrix();
   };
 }
 
@@ -513,7 +735,12 @@ function resize(canvas) {
   if (!renderer) return;
   const w = canvas.clientWidth || 800, h = canvas.clientHeight || 440;
   renderer.setSize(w, h, false);
-  camera.aspect = w / h;
+  const aspect = w / h;
+  camera.left = -viewHalf * aspect;
+  camera.right = viewHalf * aspect;
+  camera.top = viewHalf;
+  camera.bottom = -viewHalf;
+  camera.zoom = zoom;
   camera.updateProjectionMatrix();
 }
 
@@ -524,9 +751,9 @@ function loop(now) {
   stepCrowd(dt);
   if (!drag) th += 0.0009;
   camera.position.set(
-    target.x + dist * Math.sin(ph) * Math.sin(th),
-    target.y + dist * Math.cos(ph),
-    target.z + dist * Math.sin(ph) * Math.cos(th));
+    target.x + camDist * Math.sin(ph) * Math.sin(th),
+    target.y + camDist * Math.cos(ph),
+    target.z + camDist * Math.sin(ph) * Math.cos(th));
   camera.lookAt(target);
   renderer.render(scene, camera);
 }
